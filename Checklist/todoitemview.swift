@@ -55,13 +55,13 @@ struct TodoItemView: View {
             }) {
                 Image(systemName: item.isCompleted ? "checkmark.circle.fill" : (item.text.isEmpty ? "circle.dotted" : "circle"))
                     .foregroundColor(item.text.isEmpty ? .gray.opacity(0.4) : (item.isCompleted ? .gray : .gray))
-                    .font(.system(size: 16))
+                    .font(.system(size: note.fontSize.size))
                     .opacity(item.text.isEmpty ? 0.4 : (item.isCompleted ? 1 : 1))
             }
             .buttonStyle(PlainButtonStyle())
             .scaleEffect(isPressed ? 0.8 : 1.0)
             .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
-            .allowsHitTesting(!item.text.isEmpty) // Disable interaction when empty
+            .allowsHitTesting(!item.text.isEmpty)
             .frame(width: 24, alignment: .center)
             
             if isEditing {
@@ -69,12 +69,11 @@ struct TodoItemView: View {
                     text: $text,
                     isFocused: true,
                     textColor: item.textColor,
-                    fontSize: item.fontSize,
+                    fontSize: note.fontSize,
                     fontStyle: item.fontStyle,
                     isCompleted: note.listStyle == .checkbox && item.isCompleted,
                     selectedRange: $selectedRange,
                     onUpdate: { newText in
-                        // Prevent completion state when empty
                         if newText.isEmpty && item.isCompleted {
                             onToggle()
                         }
@@ -89,7 +88,7 @@ struct TodoItemView: View {
                 .animation(.easeOut(duration: 0.2), value: item.isCompleted)
             } else {
                 Text(item.text)
-                    .font(Font(item.fontStyle.font(size: item.fontSize.size)))
+                    .font(Font(item.fontStyle.font(size: note.fontSize.size)))
                     .foregroundColor(item.textColor)
                     .strikethrough(note.listStyle == .checkbox && item.isCompleted)
                     .opacity(note.listStyle == .checkbox && item.isCompleted ? 0.6 : 1.0)
@@ -104,9 +103,6 @@ struct TodoItemView: View {
         .padding(.vertical, 4)
     }
 }
-
-// No changes needed to CustomTextField implementation
-// ... rest of the code remains the same ...
 
 struct CustomTextField: NSViewRepresentable {
     @Binding var text: String
@@ -130,19 +126,18 @@ struct CustomTextField: NSViewRepresentable {
         override var intrinsicContentSize: NSSize {
             guard let cell = self.cell else { return super.intrinsicContentSize }
             
-            // Ensure minimum width
-            let minWidth: CGFloat = 250
-            let width = max(super.intrinsicContentSize.width, minWidth)
+            // Fixed width that matches the sticky note content area
+            let width: CGFloat = 290 // Leave space for checkbox and padding
+            let height = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude)).height
             
-            let size = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: preferredMaxLayoutWidth, height: CGFloat.greatestFiniteMagnitude))
-            return NSSize(width: width, height: size.height)
+            return NSSize(width: width, height: height)
         }
         
         override func textDidChange(_ notification: Notification) {
             super.textDidChange(notification)
-            invalidateIntrinsicContentSize()
             
-            // Force layout update
+            // Force immediate layout update
+            invalidateIntrinsicContentSize()
             needsLayout = true
             superview?.needsLayout = true
         }
@@ -166,87 +161,47 @@ struct CustomTextField: NSViewRepresentable {
         textField.cell?.isScrollable = false
         textField.cell?.truncatesLastVisibleLine = false
         textField.maximumNumberOfLines = 0
-        textField.preferredMaxLayoutWidth = 270
+        textField.preferredMaxLayoutWidth = 290
         
-        // Set minimum width to prevent text cutoff
-        textField.setContentCompressionResistancePriority(.required, for: .horizontal)
+        // Set compression and hugging priorities
+        textField.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        textField.setContentCompressionResistancePriority(.required, for: .vertical)
         textField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        
-        // Add width constraint
-        let widthConstraint = textField.widthAnchor.constraint(greaterThanOrEqualToConstant: 250)
-        widthConstraint.isActive = true
+        textField.setContentHuggingPriority(.defaultLow, for: .vertical)
         
         return textField
     }
     
     func updateNSView(_ nsView: MultilineTextField, context: Context) {
-        // Store the font and color values
+        // Update properties
         nsView.fontSizeValue = fontSize.size
         nsView.fontStyleValue = fontStyle
         nsView.textColorValue = NSColor(textColor)
-        
-        // Always update the font and color to ensure they reflect the current settings
         nsView.font = fontStyle.font(size: fontSize.size)
         nsView.textColor = NSColor(textColor)
+        nsView.isCompleted = isCompleted
         
-        // Apply strikethrough if completed
-        if isCompleted {
+        if nsView.stringValue != text {
             let attributedString = NSMutableAttributedString(string: text)
-            attributedString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: text.count))
-            attributedString.addAttribute(.foregroundColor, value: NSColor(textColor).withAlphaComponent(0.6), range: NSRange(location: 0, length: text.count))
-            attributedString.addAttribute(.font, value: fontStyle.font(size: fontSize.size), range: NSRange(location: 0, length: text.count))
-            nsView.attributedStringValue = attributedString
-        } else {
-            // Only update the string value if it's different to avoid layout jumps
-            if nsView.stringValue != text {
-                nsView.stringValue = text
+            if isCompleted {
+                attributedString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: text.count))
+                attributedString.addAttribute(.foregroundColor, value: NSColor(textColor).withAlphaComponent(0.6), range: NSRange(location: 0, length: text.count))
+            } else {
+                attributedString.addAttribute(.foregroundColor, value: NSColor(textColor), range: NSRange(location: 0, length: text.count))
             }
-            
-            // Create an attributed string with the correct color and font
-            let attributedString = NSMutableAttributedString(string: text)
-            attributedString.addAttribute(.foregroundColor, value: NSColor(textColor), range: NSRange(location: 0, length: text.count))
             attributedString.addAttribute(.font, value: fontStyle.font(size: fontSize.size), range: NSRange(location: 0, length: text.count))
             nsView.attributedStringValue = attributedString
         }
         
-        nsView.isCompleted = isCompleted
-        
-        // Ensure layout is updated properly
-        DispatchQueue.main.async {
-            nsView.needsLayout = true
-            nsView.superview?.needsLayout = true
-            
-            if isFocused {
-                nsView.becomeFirstResponder()
+        // Handle focus and selection
+        if isFocused {
+            DispatchQueue.main.async {
+                nsView.window?.makeFirstResponder(nsView)
                 if let editor = nsView.currentEditor() {
                     if let range = selectedRange {
                         editor.selectedRange = range
                     } else {
-                        let range = NSRange(location: nsView.stringValue.count, length: 0)
-                        editor.selectedRange = range
-                    }
-                    
-                    // Apply text attributes to the field editor
-                    if let textView = editor as? NSTextView {
-                        let editorString = NSMutableAttributedString(string: text)
-                        
-                        if isCompleted {
-                            editorString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: text.count))
-                            editorString.addAttribute(.foregroundColor, value: NSColor(textColor).withAlphaComponent(0.6), range: NSRange(location: 0, length: text.count))
-                        } else {
-                            editorString.addAttribute(.foregroundColor, value: NSColor(textColor), range: NSRange(location: 0, length: text.count))
-                        }
-                        
-                        editorString.addAttribute(.font, value: fontStyle.font(size: fontSize.size), range: NSRange(location: 0, length: text.count))
-                        
-                        // Save selection
-                        let selection = textView.selectedRange
-                        
-                        // Apply attributes
-                        textView.textStorage?.setAttributedString(editorString)
-                        
-                        // Restore selection
-                        textView.setSelectedRange(selection)
+                        editor.selectedRange = NSRange(location: nsView.stringValue.count, length: 0)
                     }
                 }
             }
@@ -280,26 +235,31 @@ struct CustomTextField: NSViewRepresentable {
                             editorString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: textField.stringValue.count))
                             editorString.addAttribute(.foregroundColor, value: textField.textColorValue.withAlphaComponent(0.6), range: NSRange(location: 0, length: textField.stringValue.count))
                         } else {
-                            // Always apply the text color
                             editorString.addAttribute(.foregroundColor, value: textField.textColorValue, range: NSRange(location: 0, length: textField.stringValue.count))
                         }
                         
                         editorString.addAttribute(.font, value: textField.fontStyleValue.font(size: textField.fontSizeValue), range: NSRange(location: 0, length: textField.stringValue.count))
                         
-                        // Save selection
                         let selection = textView.selectedRange
-                        
-                        // Apply attributes
                         textView.textStorage?.setAttributedString(editorString)
-                        
-                        // Restore selection
                         textView.setSelectedRange(selection)
                     }
                 }
             }
         }
         
+        // Handle keyboard navigation
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.moveUp(_:)) {
+                NotificationCenter.default.post(name: NSNotification.Name("MoveToPreviousItem"), object: nil)
+                return true
+            }
+            
+            if commandSelector == #selector(NSResponder.moveDown(_:)) {
+                NotificationCenter.default.post(name: NSNotification.Name("MoveToNextItem"), object: nil)
+                return true
+            }
+            
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
                 if !parent.text.isEmpty {
                     parent.onSubmit()

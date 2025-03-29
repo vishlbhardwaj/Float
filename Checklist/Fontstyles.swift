@@ -58,19 +58,19 @@ enum FontStyle: String, CaseIterable {
 }
 
 enum FontSize: String, CaseIterable {
-    case small = "Small"
-    case medium = "Medium"
-    case large = "Large"
+    case small = "14"
+    case medium = "16"
+    case large = "18"
     
     var size: CGFloat {
         switch self {
         case .small: return 14
         case .medium: return 16
-        case .large: return 20
+        case .large: return 18
         }
     }
     
     var name: String {
-        return self.rawValue
+        return self.rawValue // This will return "14", "16", "18"
     }
 }

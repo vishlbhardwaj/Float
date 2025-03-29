@@ -1,39 +1,43 @@
 import SwiftUI
 import Shimmer
 
+struct StickyNoteStyle {
+    var backgroundColor: Color
+    var textColor: Color
+}
+
 struct PropertiesBar: View {
     @ObservedObject var note: StickyNote
     var onDelete: () -> Void
     @State private var showColorPicker = false
     @State private var showSizePicker = false
+    @State private var showTextSizePicker = false
     @State private var showFontStylePicker = false
-    @Binding var selectedColor: Color
-    @Binding var selectedFontSize: FontSize
-    @Binding var selectedFontStyle: FontStyle
+    @State private var selectedColor: Color = .black
+    @State private var selectedFontStyle: FontStyle = .system
+    @State private var selectedFontSize: FontSize = .medium
     
     @State private var showListButton = false
     @State private var showSizeButton = false
+    @State private var showTextSizeButton = false
     @State private var showFontStyleButton = false
     @State private var showColorButton = false
     @State private var showDeleteButton = false
     
     let colors: [Color] = [
-        .black,
-        .red,
-        .orange,
-        .blue,
-        .purple
+        .black, .red, .orange, .blue, .purple
+    ]
+    
+    let noteSizes: [StickyNoteSize] = [
+        .small, .medium, .large
     ]
     
     let fontSizes: [FontSize] = [
-        .small,
-        .medium,
-        .large
+        .small, .medium, .large
     ]
     
     let fontStyles: [FontStyle] = FontStyle.allCases
     
-    // Define consistent spacing values
     private let buttonSpacing: CGFloat = 0
     private let buttonPadding: CGFloat = 12
     private let barHeight: CGFloat = 48
@@ -60,9 +64,7 @@ struct PropertiesBar: View {
     
     var body: some View {
         ZStack {
-            // Main toolbar
             HStack(spacing: buttonSpacing) {
-                // List style toggle
                 let isCheckboxStyle = note.listStyle == .checkbox
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -89,7 +91,170 @@ struct PropertiesBar: View {
                 
                 VerticalDivider()
                 
-                // Font style button
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        if showColorPicker { showColorPicker = false }
+                        if showFontStylePicker { showFontStylePicker = false }
+                        if showTextSizePicker { showTextSizePicker = false }
+                        showSizePicker.toggle()
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .foregroundColor(.white)
+                            .font(.system(size: 14))
+                        Text(note.noteSize.rawValue.capitalized)
+                            .foregroundColor(.white)
+                            .font(.system(size: 14))
+                    }
+                    .frame(width: 96, height: barHeight)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white.opacity(0.2))
+                            .opacity(showSizePicker ? 1 : 0)
+                            .padding(8)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(ToolbarButtonStyle())
+                .opacity(showSizeButton ? 1 : 0)
+                .offset(y: showSizeButton ? 0 : 10)
+                .overlay(
+                    Group {
+                        if showSizePicker {
+                            VStack(spacing: 4) {
+                                ForEach(noteSizes, id: \.self) { size in
+                                    let isSelected = note.noteSize == size
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.6)) {
+                                            note.updateNoteSize(to: size)
+                                            showSizePicker = false
+                                        }
+                                    }) {
+                                        HStack(spacing: 8) {
+                                            Text(size.rawValue.capitalized)
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 14))
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            if isSelected {
+                                                Image(systemName: "checkmark")
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 12))
+                                            }
+                                        }
+                                        .padding(8)
+                                        .frame(width: 96)
+                                        .contentShape(Rectangle())
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .fill(Color.white.opacity(isSelected ? 0.1 : 0))
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.black)
+                                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                            )
+                            .offset(y: 50)
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
+                            .zIndex(100)
+                        }
+                    }, alignment: .top
+                )
+                .zIndex(10)
+                
+                VerticalDivider()
+                
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        if showColorPicker { showColorPicker = false }
+                        if showFontStylePicker { showFontStylePicker = false }
+                        if showSizePicker { showSizePicker = false }
+                        showTextSizePicker.toggle()
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "textformat.size")
+                            .foregroundColor(.white)
+                            .font(.system(size: 14))
+                        Text(note.fontSize.rawValue)
+                            .foregroundColor(.white)
+                            .font(.system(size: 14))
+                    }
+                    .frame(width: 64, height: barHeight)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white.opacity(0.2))
+                            .opacity(showTextSizePicker ? 1 : 0)
+                            .padding(8)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(ToolbarButtonStyle())
+                .opacity(showTextSizeButton ? 1 : 0)
+                .offset(y: showTextSizeButton ? 0 : 10)
+                .overlay(
+                    Group {
+                        if showTextSizePicker {
+                            VStack(spacing: 4) {
+                                ForEach(fontSizes, id: \.self) { size in
+                                    let isSelected = note.fontSize == size
+                                    Button(action: {
+                                        note.isShimmering = true
+                                        withAnimation(.easeOut(duration: 0.2)) {
+                                            showTextSizePicker = false
+                                        }
+                                        
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                            withAnimation(.easeInOut(duration: 0.5)) {
+                                                note.updateTextSize(to: size)
+                                            }
+                                        }
+                                    }) {
+                                        HStack(spacing: 8) {
+                                            Text(size.rawValue)
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 14))
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            if isSelected {
+                                                Image(systemName: "checkmark")
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 12))
+                                            }
+                                        }
+                                        .padding(8)
+                                        .frame(width: 64)
+                                        .contentShape(Rectangle())
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .fill(Color.white.opacity(isSelected ? 0.1 : 0))
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.black)
+                                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                            )
+                            .offset(y: 50)
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
+                            .zIndex(100)
+                        }
+                    }, alignment: .top
+                )
+                .zIndex(9)
+                
+                VerticalDivider()
+                
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         if showColorPicker {
@@ -98,11 +263,13 @@ struct PropertiesBar: View {
                         if showSizePicker {
                             showSizePicker = false
                         }
+                        if showTextSizePicker {
+                            showTextSizePicker = false
+                        }
                         showFontStylePicker.toggle()
                     }
                 }) {
                     HStack(spacing: 8) {
-                        // Use the actual font for the "Aa" preview
                         Text("Aa")
                             .font(Font(selectedFontStyle.font(size: 14)))
                             .foregroundColor(.white)
@@ -130,19 +297,15 @@ struct PropertiesBar: View {
                                 ForEach(fontStyles, id: \.self) { style in
                                     let isSelected = selectedFontStyle == style
                                     Button(action: {
-                                        // Start shimmer
                                         note.isShimmering = true
                                         
-                                        // First close the picker
                                         withAnimation(.easeOut(duration: 0.2)) {
                                             showFontStylePicker = false
                                         }
                                         
-                                        // Delay the font style change to sync with shimmer
                                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                             withAnimation(.easeInOut(duration: 0.5)) {
                                                 selectedFontStyle = style
-                                                // Update items with animation
                                                 for index in note.items.indices {
                                                     withAnimation(.easeInOut(duration: 0.5)) {
                                                         note.items[index].fontStyle = style
@@ -150,7 +313,6 @@ struct PropertiesBar: View {
                                                 }
                                             }
                                             
-                                            // Remove shimmer after text has changed
                                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                                                 withAnimation(.easeOut(duration: 0.3)) {
                                                     note.isShimmering = false
@@ -190,122 +352,14 @@ struct PropertiesBar: View {
                             )
                             .offset(y: 50)
                             .transition(.scale(scale: 0.9).combined(with: .opacity))
-                            .zIndex(100) // Added very high z-index to ensure it appears on top
-                        }
-                    }, alignment: .top // Added alignment to ensure proper positioning
-                )
-                .zIndex(10) // Make the button itself have a higher z-index
-                
-                VerticalDivider()
-                
-                // Text size button
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        if showColorPicker {
-                            showColorPicker = false
-                        }
-                        if showFontStylePicker {
-                            showFontStylePicker = false
-                        }
-                        showSizePicker.toggle()
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        Text(selectedFontSize.name)
-                            .foregroundColor(.white)
-                            .font(.system(size: 14))
-                        
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.white)
-                            .font(.system(size: 12))
-                    }
-                    .frame(width: 96, height: barHeight)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.white.opacity(0.2))
-                            .opacity(showSizePicker ? 1 : 0)
-                            .padding(8)
-                    )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(ToolbarButtonStyle())
-                .opacity(showSizeButton ? 1 : 0)
-                .offset(y: showSizeButton ? 0 : 10)
-                .overlay(
-                    Group {
-                        if showSizePicker {
-                            VStack(spacing: 4) {
-                                ForEach(fontSizes, id: \.self) { size in
-                                    let isSelected = selectedFontSize == size
-                                    Button(action: {
-                                        // Start shimmer
-                                        note.isShimmering = true
-                                        
-                                        // First close the picker
-                                        withAnimation(.easeOut(duration: 0.2)) {
-                                            showSizePicker = false
-                                        }
-                                        
-                                        // Delay the text size change to sync with shimmer
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                            withAnimation(.easeInOut(duration: 0.5)) {
-                                                selectedFontSize = size
-                                                // Update items with animation
-                                                for index in note.items.indices {
-                                                    withAnimation(.easeInOut(duration: 0.5)) {
-                                                        note.items[index].fontSize = size
-                                                    }
-                                                }
-                                            }
-                                            
-                                            // Remove shimmer after text has changed
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                                                withAnimation(.easeOut(duration: 0.3)) {
-                                                    note.isShimmering = false
-                                                }
-                                            }
-                                        }
-                                    }) {
-                                        HStack(spacing: 8) {
-                                            Text(size.name)
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 14))
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                            if isSelected {
-                                                Image(systemName: "checkmark")
-                                                    .foregroundColor(.white)
-                                                    .font(.system(size: 12))
-                                            }
-                                        }
-                                        .padding(8)
-                                        .frame(width: 96)
-                                        .contentShape(Rectangle())
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .fill(Color.white.opacity(isSelected ? 0.1 : 0))
-                                        )
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                }
-                            }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.black)
-                                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                            )
-                            .offset(y: 50)
-                            .transition(.scale(scale: 0.9).combined(with: .opacity))
-                            .zIndex(100) // Added high z-index for consistency
+                            .zIndex(100)
                         }
                     }, alignment: .top
                 )
-                .zIndex(9) // Lower than font style button but still high
+                .zIndex(10)
                 
                 VerticalDivider()
                 
-                // Color picker button
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         if showSizePicker {
@@ -313,6 +367,9 @@ struct PropertiesBar: View {
                         }
                         if showFontStylePicker {
                             showFontStylePicker = false
+                        }
+                        if showTextSizePicker {
+                            showTextSizePicker = false
                         }
                         showColorPicker.toggle()
                     }
@@ -374,15 +431,14 @@ struct PropertiesBar: View {
                             )
                             .offset(y: 50)
                             .transition(.scale(scale: 0.9).combined(with: .opacity))
-                            .zIndex(100) // Added high z-index for consistency
+                            .zIndex(100)
                         }
                     }, alignment: .top
                 )
-                .zIndex(8) // Lower than other buttons but still high
+                .zIndex(8)
                 
                 VerticalDivider()
                 
-                // Delete button
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         onDelete()
@@ -405,32 +461,40 @@ struct PropertiesBar: View {
                     .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
             )
         }
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.2).delay(0.1)) {
-                showListButton = true
-            }
-            withAnimation(.easeOut(duration: 0.2).delay(0.115)) {
-                showFontStyleButton = true
-            }
-            withAnimation(.easeOut(duration: 0.2).delay(0.125)) {
-                showSizeButton = true
-            }
-            withAnimation(.easeOut(duration: 0.2).delay(0.15)) {
-                showColorButton = true
-            }
-            withAnimation(.easeOut(duration: 0.2).delay(0.2)) {
-                showDeleteButton = true
-            }
+        .zIndex(1000)
+        .clipped()
+        .allowsHitTesting(true)
+    }
+    .onAppear {
+        withAnimation(.easeOut(duration: 0.2).delay(0.1)) {
+            showListButton = true
         }
-        .onDisappear {
-            showListButton = false
-            showFontStyleButton = false
-            showSizeButton = false
-            showColorButton = false
-            showDeleteButton = false
-            showColorPicker = false
-            showFontStylePicker = false
-            showSizePicker = false
+        withAnimation(.easeOut(duration: 0.2).delay(0.115)) {
+            showSizeButton = true
         }
+        withAnimation(.easeOut(duration: 0.2).delay(0.125)) {
+            showTextSizeButton = true
+        }
+        withAnimation(.easeOut(duration: 0.2).delay(0.135)) {
+            showFontStyleButton = true
+        }
+        withAnimation(.easeOut(duration: 0.2).delay(0.145)) {
+            showColorButton = true
+        }
+        withAnimation(.easeOut(duration: 0.2).delay(0.2)) {
+            showDeleteButton = true
+        }
+    }
+    .onDisappear {
+        showListButton = false
+        showFontStyleButton = false
+        showSizeButton = false
+        showTextSizeButton = false
+        showColorButton = false
+        showDeleteButton = false
+        showColorPicker = false
+        showFontStylePicker = false
+        showSizePicker = false
+        showTextSizePicker = false
     }
 }

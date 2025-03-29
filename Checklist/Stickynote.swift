@@ -23,54 +23,46 @@ enum ListStyle {
     case bullet
 }
 
+enum StickyNoteSize: String, CaseIterable {
+    case small
+    case medium
+    case large
+    
+    var dimensions: (width: CGFloat, height: CGFloat) {
+        switch self {
+        case .small: return (300, 370)
+        case .medium: return (350, 420)
+        case .large: return (400, 470)
+        }
+    }
+}
+
 class StickyNote: Identifiable, ObservableObject {
     let id = UUID()
-    var style: StickyNoteStyle
+    @Published var style: StickyNoteStyle
     @Published var items: [TodoItem]
     @Published var position: CGPoint
-    @Published var listStyle: ListStyle = .checkbox
-    @Published var isShimmering = false
-    @Published var fontStyle: FontStyle = .simple  // Add this property
+    @Published var listStyle: ListStyle
+    @Published var fontStyle: FontStyle
+    @Published var noteSize: StickyNoteSize
+    @Published var fontSize: FontSize
+    @Published var isShimmering: Bool = false
     
-    init(style: StickyNoteStyle) {
+    init(style: StickyNoteStyle = .banana) {
         self.style = style
         self.items = []
-        self.position = CGPoint(x: 0, y: 0)
+        self.position = .zero
+        self.listStyle = .bullet
+        self.fontStyle = .simple
+        self.noteSize = .medium
+        self.fontSize = .medium
     }
     
-    func updateTextSize(to newSize: FontSize) {
-        isShimmering = true
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                for index in self.items.indices {
-                    self.items[index].fontSize = newSize
-                }
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.isShimmering = false
-            }
-        }
+    func updateNoteSize(to size: StickyNoteSize) {
+        self.noteSize = size
     }
     
-    func updateTextSizeSmoothly(to newSize: FontSize) {
-        isShimmering = true
-        
-        // First update the model without animation
-        for index in self.items.indices {
-            self.items[index].fontSize = newSize
-        }
-        
-        // Then trigger a smooth visual update
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                self.objectWillChange.send()
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.isShimmering = false
-            }
-        }
+    func updateTextSize(to size: FontSize) {
+        self.fontSize = size
     }
 }
