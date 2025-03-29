@@ -56,22 +56,25 @@ struct TodoItemView: View {
     }
     
     private func performResizeAnimation() {
-        withAnimation(.easeOut(duration: 0.15)) {
+        // First hide all items quickly
+        withAnimation(.easeOut(duration: 0.2)) {
             opacity = 0
-            blurRadius = 6
-            scale = 0.95
+            blurRadius = 10
+            scale = 0.98
             shouldShowText = false
             isUpdatingSize = true
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        // Update the font size while content is hidden
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             currentFontSize = note.fontSize
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.06) {
+            // Stagger the reappearance of items from top to bottom
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(self.index) * 0.08) {
                 withAnimation(.spring(
-                    response: 0.4,
-                    dampingFraction: 0.7,
-                    blendDuration: 0.2
+                    response: 0.6,
+                    dampingFraction: 0.8,
+                    blendDuration: 0.3
                 )) {
                     opacity = 1
                     blurRadius = 0
@@ -308,7 +311,7 @@ struct CustomTextField: NSViewRepresentable {
             DispatchQueue.main.async {
                 nsView.window?.makeFirstResponder(nsView)
                 if let editor = nsView.currentEditor() {
-                    if let range = selectedRange {
+                    if let range = self.selectedRange {
                         editor.selectedRange = range
                     } else {
                         editor.selectedRange = NSRange(location: nsView.stringValue.count, length: 0)
