@@ -38,40 +38,33 @@ struct TodoItemView: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // List marker (checkbox or bullet)
-            Group {
-                if note.listStyle == .checkbox {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-                            isPressed = true
-                        }
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                onToggle()
-                                isPressed = false
-                            }
-                        }
-                    }) {
-                        Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(item.isCompleted ? .black : .gray)
-                            .font(.system(size: item.fontSize.size))
+        HStack(alignment: .top, spacing: 8) {
+            Button(action: {
+                if !item.text.isEmpty {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                        isPressed = true
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .scaleEffect(isPressed ? 0.8 : 1.0)
-                    .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
-                } else {
-                    Circle()
-                        .fill(Color.gray)
-                        .frame(width: 6, height: 6)
-                        .padding(.top, 8)
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            onToggle()
+                            isPressed = false
+                        }
+                    }
                 }
+            }) {
+                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : (item.text.isEmpty ? "circle.dotted" : "circle"))
+                    .foregroundColor(item.text.isEmpty ? .gray.opacity(0.4) : (item.isCompleted ? .gray : .gray))
+                    .font(.system(size: 16))
+                    .opacity(item.text.isEmpty ? 0.4 : (item.isCompleted ? 1 : 1))
             }
-            .frame(width: 20)
+            .buttonStyle(PlainButtonStyle())
+            .scaleEffect(isPressed ? 0.8 : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
+            .allowsHitTesting(!item.text.isEmpty) // Disable interaction when empty
+            .frame(width: 24, alignment: .center)
             
             if isEditing {
-                // Fixed layout for editing state
                 CustomTextField(
                     text: $text,
                     isFocused: true,
@@ -80,72 +73,35 @@ struct TodoItemView: View {
                     fontStyle: item.fontStyle,
                     isCompleted: note.listStyle == .checkbox && item.isCompleted,
                     selectedRange: $selectedRange,
-                    onUpdate: onUpdate,
+                    onUpdate: { newText in
+                        // Prevent completion state when empty
+                        if newText.isEmpty && item.isCompleted {
+                            onToggle()
+                        }
+                        onUpdate(newText)
+                    },
                     onSubmit: onInsertAfter,
                     onDelete: onDelete,
                     onColorChange: onColorChange
                 )
-                .frame(minWidth: 250, maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .opacity(note.listStyle == .checkbox && item.isCompleted ? 0.6 : 1.0)
-                .fixedSize(horizontal: false, vertical: true)
-                .animation(
-                    .interpolatingSpring(
-                        mass: 1.0,
-                        stiffness: 100,
-                        damping: 20,
-                        initialVelocity: 0
-                    ),
-                    value: item.fontSize.size
-                )
-                .animation(
-                    .interpolatingSpring(
-                        mass: 1.0,
-                        stiffness: 100,
-                        damping: 20,
-                        initialVelocity: 0
-                    ),
-                    value: item.fontStyle
-                )
-                // Add this to force refresh when text color changes
-                .id("edit-\(item.id)-\(item.textColor.description)-\(item.fontStyle.rawValue)")
+                .animation(.easeOut(duration: 0.2), value: item.isCompleted)
             } else {
-                // Fixed layout for non-editing state
                 Text(item.text)
                     .font(Font(item.fontStyle.font(size: item.fontSize.size)))
                     .foregroundColor(item.textColor)
                     .strikethrough(note.listStyle == .checkbox && item.isCompleted)
                     .opacity(note.listStyle == .checkbox && item.isCompleted ? 0.6 : 1.0)
-                    .frame(minWidth: 250, maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .lineLimit(nil)
                     .onTapGesture { onStartEditing() }
                     .contentShape(Rectangle())
-                    .animation(
-                        .interpolatingSpring(
-                            mass: 1.0,
-                            stiffness: 100,
-                            damping: 20,
-                            initialVelocity: 0
-                        ),
-                        value: item.fontSize.size
-                    )
-                    .animation(
-                        .interpolatingSpring(
-                            mass: 1.0,
-                            stiffness: 100,
-                            damping: 20,
-                            initialVelocity: 0
-                        ),
-                        value: item.fontStyle
-                    )
-                    // Add this to force refresh when text color changes
-                    .id("text-\(item.id)-\(item.textColor.description)-\(item.fontStyle.rawValue)")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 4)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: item.isCompleted)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: note.listStyle)
+        .padding(.vertical, 4)
     }
 }
 

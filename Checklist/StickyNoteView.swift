@@ -31,13 +31,11 @@ struct StickyNoteView: View {
     // Fixed dimensions and spacing
     private let noteWidth: CGFloat = 350
     private let noteHeight: CGFloat = 420
-    private let contentPadding: CGFloat = 30 // Base padding value
-    private let headerTopOffset: CGFloat = -16 // More negative offset to push header further up
-    private let topPadding: CGFloat = 24 // Slightly reduced top padding
-    private let bottomSafeArea: CGFloat = 10 // Safe area at the bottom
-    private let contentAreaHeight: CGFloat = 320 // Calculated height for content area
-    private let checkboxWidth: CGFloat = 30 // Adjusted checkbox width for alignment
-    private let dateLeftOffset: CGFloat = 4 // Small offset to align date with checkboxes
+    private let horizontalPadding: CGFloat = 24
+    private let contentTopPadding: CGFloat = 20
+    private let headerTopOffset: CGFloat = -12
+    private let checkboxWidth: CGFloat = 24
+    private let dateLeftOffset: CGFloat = 4
     
     var body: some View {
         GeometryReader { geometry in
@@ -52,73 +50,71 @@ struct StickyNoteView: View {
                 
                 // Main sticky note with fixed width
                 ZStack {
-                                    // Base background
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .fill(note.style.backgroundColor)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 20)
-                                                .strokeBorder(
-                                                    note.style.backgroundColor.darker(by: 0.1),
-                                                    lineWidth: 1
-                                                )
-                                                .opacity(0.3)
-                                        )
-                                        .shadow(
-                                            color: Color.black.opacity(isDragging ? 0.3 : 0.1),
-                                            radius: isDragging ? 20 : 10,
-                                            x: 0,
-                                            y: isDragging ? 10 : 5
-                                        )
-                                    
-                                    // Content with explicit padding
-                                    VStack(alignment: .leading, spacing: 0) {
-                                        // Add spacer at the top to balance the left padding
-                                        Spacer().frame(height: 22)
-                                        
-                                        // Header with date and menu - pushed up with offset
-                                        HStack(spacing: 0) {
-                                            // Date with small offset to align with checkboxes
-                                            HStack(spacing: 0) {
-                                                Spacer().frame(width: dateLeftOffset)
-                                                Text(formattedDate)
-                                                    .font(.system(size: 12))
-                                                    .foregroundColor(.gray)
-                                            }
-                                            .frame(width: 100, alignment: .leading) // Fixed width for date
-                                            
-                                            Spacer()
-                                            
-                                            Button(action: {
-                                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                                    showPropertiesBar.toggle()
-                                                }
-                                            }) {
-                                                Image(systemName: showPropertiesBar ? "xmark.circle.fill" : "ellipsis")
-                                                            .foregroundColor(.gray.opacity(0.5))
-                                                            .font(.system(size: 20))
-                                                            .frame(width: 20, height: 20) // Keep the image size the same
-                                                            .contentShape(Rectangle()) // Make entire area tappable
-                                                            .frame(width: 44, height: 44) // Increase the tap target to 44x44
-                                            }
-                                            .buttonStyle(PlainButtonStyle())
-                                            .opacity(isDragging ? 0 : 1)
-                                        }
-                                        .offset(y: headerTopOffset) // Increased negative offset
-                                        
-                                        Spacer().frame(height: 10 + headerTopOffset) // Reduced spacing + adjusted for header offset
-                                        
-                                        // Content area
-                                        VStack(alignment: .leading, spacing: 0) {
-                                            todoListContent
-                                        }
-                                    }
-                                    .padding(.horizontal, contentPadding)
-                                    .padding(.top, topPadding) // Reduced top padding
-                                    .padding(.bottom, contentPadding)
-                                    .frame(width: noteWidth, height: noteHeight)
-                                    
-                                    confettiLayer
+                    // Base background
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(note.style.backgroundColor)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                            .strokeBorder(
+                                note.style.backgroundColor.darker(by: 0.1),
+                                lineWidth: 1
+                            )
+                            .opacity(0.3)
+                        )
+                        .shadow(
+                            color: Color.black.opacity(isDragging ? 0.3 : 0.1),
+                            radius: isDragging ? 20 : 10,
+                            x: 0,
+                            y: isDragging ? 10 : 5
+                        )
+                    
+                    // Content with explicit padding
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Top spacer adjusted
+                        Spacer().frame(height: 16)
+                        
+                        // Header section
+                        HStack(spacing: 0) {
+                            HStack(spacing: 0) {
+                                Spacer().frame(width: dateLeftOffset)
+                                Text(formattedDate)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(width: 100, alignment: .leading)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    showPropertiesBar.toggle()
                                 }
+                            }) {
+                                Image(systemName: showPropertiesBar ? "xmark.circle.fill" : "ellipsis")
+                                    .foregroundColor(.gray.opacity(0.5))
+                                    .font(.system(size: 20))
+                                    .frame(width: 20, height: 20)
+                                    .contentShape(Rectangle())
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .opacity(isDragging ? 0 : 1)
+                        }
+                        .offset(y: headerTopOffset)
+                        
+                        Spacer().frame(height: 8)
+                        
+                        // Content area with improved spacing
+                        VStack(alignment: .leading, spacing: 0) {
+                            todoListContent
+                        }
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, contentTopPadding)
+                    .frame(width: noteWidth, height: noteHeight)
+                    
+                    confettiLayer
+                }
                 .frame(width: noteWidth, height: noteHeight)
                 .cornerRadius(20)
                 .scaleEffect(elevation)
@@ -197,123 +193,119 @@ struct StickyNoteView: View {
     }
     
     private var todoListContent: some View {
-        // Wrap existing ScrollView in ZStack while preserving all original properties
         ZStack(alignment: .bottom) {
-                    // Main scroll view with adjusted height to reach red line
-                    ScrollView {
-                        ScrollViewReader { proxy in
-                            VStack(alignment: .leading, spacing: 12) {
-                                if note.items.isEmpty {
-                                    emptyStateView
-                                } else {
-                                    todoItemsList(proxy: proxy)
-                                }
-                                
-                                // Reduced spacer for less extra space at bottom
-                                Spacer().frame(height: 5) // Changed from bottomSafeArea (10)
-                            }
-                            .onAppear {
-                                scrollProxy = proxy
-                            }
-                            .onChange(of: editingItemId) { newValue in
-                                if let id = newValue {
-                                    // Auto-scroll to the editing item with a slight delay
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        withAnimation {
-                                            proxy.scrollTo(id, anchor: .bottom)
-                                        }
-                                    }
+            ScrollView {
+                ScrollViewReader { proxy in
+                    VStack(alignment: .leading, spacing: 8) {
+                        if note.items.isEmpty {
+                            emptyStateView
+                        } else {
+                            todoItemsList(proxy: proxy)
+                        }
+                        
+                        Spacer().frame(height: 5)
+                    }
+                    .onAppear {
+                        scrollProxy = proxy
+                    }
+                    .onChange(of: editingItemId) { newValue in
+                        if let id = newValue {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation {
+                                    proxy.scrollTo(id, anchor: .bottom)
                                 }
                             }
                         }
                     }
-                    // Better height calculation to show more content
-                    .frame(height: noteHeight - topPadding - contentPadding - 40) // Changed from contentAreaHeight-based calculation
-                    .scrollIndicators(.visible)
-                    .onTapGesture {
-                        isViewActive = true
-                        handleTap()
-                    }
-                    
-                    // Bottom gradient positioned at red line
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            note.style.backgroundColor.opacity(0.0),  // Transparent start
-                            note.style.backgroundColor.opacity(0.1),  // Very subtle start of fade
-                            note.style.backgroundColor.opacity(0.4),  // Medium fade
-                            note.style.backgroundColor                // Full opacity at bottom
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 20) // Taller gradient
-                    .padding(.bottom, 0) // Positioned right at the visible bottom
-                    .allowsHitTesting(false)
                 }
-                // Overall frame matched to scroll view height
-                .frame(height: noteHeight - topPadding - contentPadding - 40) // Match the new height calculation
             }
+            .frame(height: noteHeight - contentTopPadding - horizontalPadding - 40)
+            .scrollIndicators(.visible)
+            .onTapGesture {
+                isViewActive = true
+                handleTap()
+            }
+            
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    note.style.backgroundColor.opacity(0.0),
+                    note.style.backgroundColor.opacity(0.1),
+                    note.style.backgroundColor.opacity(0.4),
+                    note.style.backgroundColor
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 20)
+            .padding(.bottom, 0)
+            .allowsHitTesting(false)
+        }
+        .frame(height: noteHeight - contentTopPadding - horizontalPadding - 40)
+    }
     
     private var emptyStateView: some View {
-    
-            HStack(alignment: .center, spacing: 8) { // Added explicit spacing of 8 points
-                // Always show checkbox in default state
-                Image(systemName: newItemText.isEmpty ? "circle.dotted" : "circle")
-                    .foregroundColor(.gray)
-                    .font(.system(size: 16))
-                    .opacity(newItemText.isEmpty ? 0.4 : 1) // Lighter in empty state, normal when typing
-                    .frame(width: checkboxWidth, alignment: .center)
-                
-                TextField("", text: $newItemText)
-                    .font(Font(selectedFontStyle.font(size: selectedFontSize.size)))
-                    .textFieldStyle(PlainTextFieldStyle())
-                    .foregroundColor(selectedColor)
-                    .focused($isFocused)
-                    .placeholder(when: newItemText.isEmpty) {
-                        Text("Add to do items") // Updated placeholder text to match your image
-                            .foregroundColor(.gray.opacity(0.4)) // Reduced opacity
-                            .font(Font(selectedFontStyle.font(size: selectedFontSize.size)))
-                    }
-                    .onSubmit {
-                        if !newItemText.isEmpty {
-                            let firstItem = TodoItem(
-                                text: newItemText,
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: newItemText.isEmpty ? "circle.dotted" : "circle")
+                .foregroundColor(newItemText.isEmpty ? .gray.opacity(0.4) : .gray)
+                .font(.system(size: 16))
+                .frame(width: checkboxWidth, alignment: .center)
+                .allowsHitTesting(false) // Disable interaction when empty
+            
+            TextField("", text: $newItemText)
+                .font(Font(selectedFontStyle.font(size: selectedFontSize.size)))
+                .textFieldStyle(PlainTextFieldStyle())
+                .foregroundColor(selectedColor)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: noteWidth - horizontalPadding * 2 - checkboxWidth - 8, alignment: .leading) // Explicit width calculation
+                .focused($isFocused)
+                .placeholder(when: newItemText.isEmpty) {
+                    Text("Add to do items")
+                        .foregroundColor(.gray.opacity(0.4))
+                        .font(Font(selectedFontStyle.font(size: selectedFontSize.size)))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .onSubmit {
+                    if !newItemText.isEmpty {
+                        let firstItem = TodoItem(
+                            text: newItemText,
+                            isCompleted: false,
+                            textColor: selectedColor,
+                            fontSize: selectedFontSize,
+                            fontStyle: selectedFontStyle
+                        )
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            note.items.append(firstItem)
+                            newItemText = ""
+                            
+                            let newItem = TodoItem(
+                                text: "",
                                 isCompleted: false,
                                 textColor: selectedColor,
                                 fontSize: selectedFontSize,
                                 fontStyle: selectedFontStyle
                             )
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                note.items.append(firstItem)
-                                newItemText = ""
-                                
-                                let newItem = TodoItem(
-                                    text: "",
-                                    isCompleted: false,
-                                    textColor: selectedColor,
-                                    fontSize: selectedFontSize,
-                                    fontStyle: selectedFontStyle
-                                )
-                                note.items.append(newItem)
-                                editingItemId = newItem.id
-                                
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    withAnimation {
-                                        scrollProxy?.scrollTo(newItem.id, anchor: .bottom)
-                                    }
+                            note.items.append(newItem)
+                            editingItemId = newItem.id
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation {
+                                    scrollProxy?.scrollTo(newItem.id, anchor: .bottom)
                                 }
                             }
                         }
                     }
-                    .onChange(of: newItemText) { newValue in
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showCheckbox = !newValue.isEmpty
-                        }
+                }
+                .onChange(of: newItemText) { newValue in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showCheckbox = !newValue.isEmpty
                     }
-            }
-            .padding(.vertical, 8) // Maintained vertical padding
-            .animation(.easeInOut(duration: 0.2), value: newItemText.isEmpty)
+                }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+        .animation(.easeInOut(duration: 0.2), value: newItemText.isEmpty)
+    }
     
     private func todoItemsList(proxy: ScrollViewProxy) -> some View {
         ForEach(Array(sortedItems.enumerated()), id: \.element.id) { index, item in
@@ -334,7 +326,6 @@ struct StickyNoteView: View {
                     if let index = note.items.firstIndex(where: { $0.id == item.id }) {
                         note.items[index].text = newText
                         
-                        // Auto-scroll when text is updated
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                             withAnimation {
                                 proxy.scrollTo(item.id, anchor: .bottom)
