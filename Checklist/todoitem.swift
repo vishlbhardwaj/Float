@@ -1,20 +1,21 @@
 import Foundation
 import SwiftUI
 
-struct TodoItem: Identifiable {
+class TodoItem: ObservableObject, Identifiable {
     let id = UUID()
-    var text: String
-    var isCompleted: Bool
-    var textColor: Color = .black
-    var fontSize: FontSize = .medium
-    var fontStyle: FontStyle = .simple
-    let createdAt = Date()
+    weak var parentNote: StickyNote?
     
-    init(text: String, isCompleted: Bool, textColor: Color = .black, fontSize: FontSize = .medium, fontStyle: FontStyle? = nil) {
+    @Published var text: String
+    @Published var isCompleted: Bool
+    @Published var textColor: Color
+    @Published var fontSize: FontSize
+    @Published var fontStyle: FontStyle
+    
+    init(text: String = "", isCompleted: Bool = false) {
         self.text = text
         self.isCompleted = isCompleted
-        self.textColor = textColor
-        self.fontSize = fontSize
-        self.fontStyle = fontStyle ?? .simple  // Use default if nil
+        self.textColor = .primary
+        self.fontSize = .medium
+        self.fontStyle = .simple
     }
 }

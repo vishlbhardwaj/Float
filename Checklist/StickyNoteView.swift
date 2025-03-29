@@ -4,6 +4,7 @@ import ConfettiSwiftUI
 
 struct StickyNoteView: View {
     @ObservedObject var note: StickyNote
+    @State private var editingItem: TodoItem?
     @State private var editingItemId: UUID?
     @State private var newItemText: String = ""
     @FocusState private var isFocused: Bool
@@ -22,7 +23,7 @@ struct StickyNoteView: View {
     @State private var lastDragValue: CGFloat = 0
     @State private var isViewActive: Bool = false
     @State private var showPropertiesBar: Bool = false
-    @State private var selectedColor: Color = .black
+    @State private var selectedColor: Color = .primary
     @State private var selectedFontSize: FontSize = .medium
     @State private var selectedFontStyle: FontStyle = .simple
     @State private var currentEditingIndex: Int = 0
@@ -42,7 +43,6 @@ struct StickyNoteView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .top) {
-                // Base layer for interactions
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -51,10 +51,9 @@ struct StickyNoteView: View {
                         editingItemId = nil
                     }
                 
-                // Main sticky note
-                ZStack {
-                    // Properties bar overlay
-                    if showPropertiesBar && !isDragging {
+                // Properties bar overlay with enhanced animation
+                if showPropertiesBar && !isDragging {
+                    VStack {
                         PropertiesBar(
                             note: note,
                             onDelete: {
@@ -74,13 +73,16 @@ struct StickyNoteView: View {
                             selectedFontStyle: $selectedFontStyle
                         )
                         .frame(width: 320)
-                        .offset(y: -66) // 16px gap + half of properties bar height
                         .scaleEffect(showPropertiesBar ? 1 : 0.9)
+                        .offset(y: showPropertiesBar ? -50 : -35)
                         .opacity(showPropertiesBar ? 1 : 0)
-                        .zIndex(1000)
+                        Spacer()
                     }
-                    
-                    // Sticky note background
+                }
+                
+                // Main sticky note with computed width
+                ZStack {
+                    // Base background
                     RoundedRectangle(cornerRadius: 20)
                         .fill(note.style.backgroundColor)
                         .overlay(
@@ -97,262 +99,80 @@ struct StickyNoteView: View {
                             x: 0,
                             y: isDragging ? 10 : 5
                         )
+                        .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: noteWidth)
+                        .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: noteHeight)
                     
-                    // Note content
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Top spacer adjusted
-                        Spacer().frame(height: 12)
+                    VStack(spacing: 0) {
+                        // Header with properties bar
+                        PropertiesBar(note: note)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
                         
-                        // Header section
-                        HStack(spacing: 0) {
-                            HStack(spacing: 0) {
-                                Spacer().frame(width: dateLeftOffset)
-                                Text(formattedDate)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.gray)
-                            }
-                            .frame(width: 100, alignment: .leading)
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                    showPropertiesBar.toggle()
+                        // Todo items list
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(note.items) { currentItem in
+                                    TodoItemView(
+                                        item: currentItem, 
+                                        note: note,
+                                        onStartEditing: { 
+                                            editingItem = currentItem 
+                                        },
+                                        onUpdate: { newText in 
+                                            currentItem.text = newText 
+                                        },
+                                        onDelete: {
+                                            if let index = note.items.firstIndex(where: { $0.id == currentItem.id }) {
+                                                if note.items.count > 1 {
+                                                    note.items.remove(at: index)
+                                                }
+                                            }
+                                        },
+                                        onInsertAfter: {
+                                            if let index = note.items.firstIndex(where: { $0.id == currentItem.id }) {
+                                                let newItem = TodoItem()
+                                                newItem.parentNote = note
+                                                note.items.insert(newItem, at: index + 1)
+                                                editingItem = newItem
+                                            }
+                                        },
+                                        onColorChange: { color, range in
+                                            currentItem.textColor = color
+                                        }
+                                    )
                                 }
-                            }) {
-                                Image(systemName: showPropertiesBar ? "xmark.circle.fill" : "ellipsis")
-                                    .foregroundColor(.gray.opacity(0.5))
-                                    .font(.system(size: 20))
-                                    .frame(width: 20, height: 20)
-                                    .contentShape(Rectangle())
-                                    .frame(width: 44, height: 44)
+                                // Add new item button
+                                Button(action: {
+                                    let newItem = TodoItem()
+                                    newItem.parentNote = note
+                                    note.items.append(newItem)
+                                }) {
+                                    HStack {
+                                        Image(systemName: "plus.circle.fill")
+                                        Text("Add item")
+                                    }
+                                    .foregroundColor(.gray)
+                                }
                             }
-                            .buttonStyle(PlainButtonStyle())
-                            .opacity(isDragging ? 0 : 1)
-                        }
-                        .offset(y: headerTopOffset)
-                        
-                        Spacer().frame(height: 8)
-                        
-                        // Content area with improved spacing
-                        VStack(alignment: .leading, spacing: 0) {
-                            todoListContent
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
                         }
                     }
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.top, contentTopPadding)
-                    .padding(.bottom, bottomSafeArea)
                     .frame(width: noteWidth, height: noteHeight)
+                    .background(note.style.backgroundColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     
                     confettiLayer
                 }
                 .frame(width: noteWidth, height: noteHeight)
                 .cornerRadius(20)
                 .scaleEffect(elevation)
-                .rotationEffect(.degrees(rotation + dragRotation + followThroughRotation))
+                .rotationEffect(.degrees(rotation))
                 .opacity(opacity)
-                // Center and resize animations
-                .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: noteWidth)
-                .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: noteHeight)
                 .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                 .gesture(dragGesture)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-    
-    private var todoListContent: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView {
-                ScrollViewReader { proxy in
-                    VStack(alignment: .leading, spacing: 8) {
-                        if note.items.isEmpty {
-                            emptyStateView
-                        } else {
-                            todoItemsList(proxy: proxy)
-                        }
-                        
-                        Spacer().frame(height: bottomSafeArea)
-                    }
-                    .onAppear {
-                        scrollProxy = proxy
-                    }
-                    .onChange(of: editingItemId) { newValue in
-                        if let id = newValue {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                withAnimation {
-                                    proxy.scrollTo(id, anchor: .bottom)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(height: noteHeight - contentTopPadding - bottomSafeArea - 40)
-            .scrollIndicators(.visible)
-            .onTapGesture {
-                isViewActive = true
-                handleTap()
-            }
-            
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    note.style.backgroundColor.opacity(0.0),
-                    note.style.backgroundColor.opacity(0.1),
-                    note.style.backgroundColor.opacity(0.4),
-                    note.style.backgroundColor
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 24)
-            .padding(.bottom, bottomSafeArea)
-            .allowsHitTesting(false)
-        }
-        .frame(height: noteHeight - contentTopPadding - bottomSafeArea - 40)
-    }
-    
-    private var emptyStateView: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: newItemText.isEmpty ? "circle.dotted" : "circle")
-                .foregroundColor(newItemText.isEmpty ? .gray.opacity(0.4) : .gray)
-                .font(.system(size: 16))
-                .frame(width: checkboxWidth, alignment: .center)
-                .allowsHitTesting(false)
-            
-            CustomTextField(
-                text: $newItemText,
-                isFocused: true,
-                textColor: selectedColor,
-                fontSize: selectedFontSize,
-                fontStyle: selectedFontStyle,
-                isCompleted: false,
-                selectedRange: .constant(nil),
-                onUpdate: { _ in },
-                onSubmit: {
-                    if !newItemText.isEmpty {
-                        let firstItem = TodoItem(
-                            text: newItemText,
-                            isCompleted: false,
-                            textColor: selectedColor,
-                            fontSize: selectedFontSize,
-                            fontStyle: selectedFontStyle
-                        )
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            note.items.append(firstItem)
-                            newItemText = ""
-                            
-                            let newItem = TodoItem(
-                                text: "",
-                                isCompleted: false,
-                                textColor: selectedColor,
-                                fontSize: selectedFontSize,
-                                fontStyle: selectedFontStyle
-                            )
-                            note.items.append(newItem)
-                            editingItemId = newItem.id
-                            
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                withAnimation {
-                                    scrollProxy?.scrollTo(newItem.id, anchor: .bottom)
-                                }
-                            }
-                        }
-                    }
-                },
-                onDelete: { },
-                onColorChange: { _, _ in }
-            )
-            .frame(maxWidth: .infinity)
-            .overlay(
-                Group {
-                    if newItemText.isEmpty {
-                        Text("Add to do items")
-                            .foregroundColor(.gray.opacity(0.4))
-                            .font(Font(selectedFontStyle.font(size: selectedFontSize.size)))
-                            .allowsHitTesting(false)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            )
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 8)
-        .onAppear {
-            NotificationCenter.default.addObserver(forName: NSNotification.Name("MoveToPreviousItem"), object: nil, queue: .main) { _ in
-                handleMoveToPreviousItem()
-            }
-            NotificationCenter.default.addObserver(forName: NSNotification.Name("MoveToNextItem"), object: nil, queue: .main) { _ in
-                handleMoveToNextItem()
-            }
-        }
-    }
-    
-    private func todoItemsList(proxy: ScrollViewProxy) -> some View {
-        ForEach(Array(sortedItems.enumerated()), id: \.element.id) { index, item in
-            TodoItemView(
-                item: item,
-                isEditing: editingItemId == item.id,
-                note: note,
-                onStartEditing: {
-                    editingItemId = item.id
-                    currentEditingIndex = index
-                },
-                onToggle: {
-                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                        note.items[index].isCompleted.toggle()
-                        checkCompletion()
-                    }
-                },
-                onUpdate: { newText in
-                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                        note.items[index].text = newText
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            withAnimation {
-                                proxy.scrollTo(item.id, anchor: .bottom)
-                            }
-                        }
-                    }
-                },
-                onDelete: {
-                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            note.items.remove(at: index)
-                            
-                            if !note.items.isEmpty {
-                                let newIndex = max(0, index - 1)
-                                let newItem = note.items[newIndex]
-                                editingItemId = newItem.id
-                            } else {
-                                editingItemId = nil
-                                isFocused = true
-                            }
-                        }
-                    }
-                },
-                onInsertAfter: {
-                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                        let newItem = TodoItem(
-                            text: "",
-                            isCompleted: false,
-                            textColor: selectedColor,
-                            fontSize: selectedFontSize,
-                            fontStyle: selectedFontStyle
-                        )
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            note.items.insert(newItem, at: index + 1)
-                            editingItemId = newItem.id
-                        }
-                    }
-                },
-                onColorChange: { color, range in
-                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                        note.items[index].textColor = color
-                    }
-                }
-            )
-            .id(item.id)
         }
     }
     
@@ -399,16 +219,16 @@ struct StickyNoteView: View {
                 }
                 
                 let dragX = value.translation.width
-                let targetRotation = dragX * 0.5 // Restored original rotation factor
+                let targetRotation = min(max(dragX * 0.2, -10), 10)
                 
                 withAnimation(.interactiveSpring()) {
-                    dragRotation = min(max(targetRotation, -15), 15)
+                    dragRotation = targetRotation
                 }
                 
                 lastDragValue = dragX
             }
             .onEnded { value in
-                let velocity = lastDragValue * 0.08 // Restored original velocity
+                let velocity = lastDragValue * 0.05
                 isDragging = false
                 
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -417,17 +237,7 @@ struct StickyNoteView: View {
                 }
                 
                 if abs(velocity) > 0.5 {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
-                        followThroughRotation = velocity * 0.5
-                    }
-                    
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.2)) {
-                        followThroughRotation = -velocity * 0.2
-                    }
-                    
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8).delay(0.4)) {
-                        followThroughRotation = 0
-                    }
+                    handleDragEndAnimation(velocity: velocity)
                 }
                 
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8).delay(0.5)) {
