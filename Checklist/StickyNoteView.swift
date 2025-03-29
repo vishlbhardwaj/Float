@@ -4,7 +4,6 @@ import ConfettiSwiftUI
 
 struct StickyNoteView: View {
     @ObservedObject var note: StickyNote
-    @State private var editingItem: TodoItem?
     @State private var editingItemId: UUID?
     @State private var newItemText: String = ""
     @FocusState private var isFocused: Bool
@@ -23,7 +22,7 @@ struct StickyNoteView: View {
     @State private var lastDragValue: CGFloat = 0
     @State private var isViewActive: Bool = false
     @State private var showPropertiesBar: Bool = false
-    @State private var selectedColor: Color = .primary
+    @State private var selectedColor: Color = .black
     @State private var selectedFontSize: FontSize = .medium
     @State private var selectedFontStyle: FontStyle = .simple
     @State private var currentEditingIndex: Int = 0
@@ -33,12 +32,18 @@ struct StickyNoteView: View {
     // Computed dimensions and spacing
     private var noteWidth: CGFloat { note.noteSize.dimensions.width }
     private var noteHeight: CGFloat { note.noteSize.dimensions.height }
-    private let horizontalPadding: CGFloat = 24
-    private let contentTopPadding: CGFloat = 16
+    private let horizontalPadding: CGFloat = 20
+    private let contentTopPadding: CGFloat = 12
     private let headerTopOffset: CGFloat = -8
     private let checkboxWidth: CGFloat = 24
     private let dateLeftOffset: CGFloat = 4
     private let bottomSafeArea: CGFloat = 20
+    
+    // New properties for positioning
+    private let propertiesBarHeight: CGFloat = 48
+    private let propertiesBarGap: CGFloat = 16
+    private let propertiesBarPadding: CGFloat = 32
+    private let minimumTopSpace: CGFloat = 16 // Minimum space needed from window top
     
     var body: some View {
         GeometryReader { geometry in
@@ -51,9 +56,98 @@ struct StickyNoteView: View {
                         editingItemId = nil
                     }
                 
-                // Properties bar overlay with enhanced animation
+                // Calculate vertical positions
+                let totalRequiredSpace = propertiesBarHeight + propertiesBarGap + noteHeight
+                let availableSpace = geometry.size.height
+                let defaultNoteY = geometry.size.height / 2
+                
+                let adjustedNoteY = max(
+                    defaultNoteY,
+                    totalRequiredSpace / 2
+                )
+                
+                // Main sticky note
+                ZStack {
+                    // Base background
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(note.style.backgroundColor)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .strokeBorder(
+                                    note.style.backgroundColor.darker(by: 0.1),
+                                    lineWidth: 1
+                                )
+                                .opacity(0.3)
+                        )
+                        .shadow(
+                            color: Color.black.opacity(isDragging ? 0.2 : 0.1),
+                            radius: isDragging ? 15 : 8,
+                            x: 0,
+                            y: isDragging ? 8 : 4
+                        )
+                        .rotationEffect(.degrees(dragRotation))
+                    
+                    // Content
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Top spacer adjusted
+                        Spacer().frame(height: 12)
+                        
+                        // Header section
+                        HStack(spacing: 0) {
+                            HStack(spacing: 0) {
+                                Spacer().frame(width: dateLeftOffset)
+                                Text(formattedDate)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(width: 100, alignment: .leading)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    showPropertiesBar.toggle()
+                                }
+                            }) {
+                                Image(systemName: showPropertiesBar ? "xmark.circle.fill" : "ellipsis")
+                                    .foregroundColor(.gray.opacity(0.5))
+                                    .font(.system(size: 20))
+                                    .frame(width: 20, height: 20)
+                                    .contentShape(Rectangle())
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .opacity(isDragging ? 0 : 1)
+                        }
+                        .offset(y: headerTopOffset)
+                        
+                        Spacer().frame(height: 8)
+                        
+                        // Content area with improved spacing
+                        VStack(alignment: .leading, spacing: 0) {
+                            todoListContent
+                        }
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, contentTopPadding)
+                    .padding(.bottom, bottomSafeArea)
+                    .frame(width: noteWidth, height: noteHeight)
+                    
+                    confettiLayer
+                }
+                .frame(width: noteWidth, height: noteHeight)
+                .cornerRadius(20)
+                .scaleEffect(elevation)
+                .opacity(opacity)
+                .position(x: geometry.size.width / 2, y: adjustedNoteY)
+                .gesture(dragGesture)
+                .padding(40)
+                
+                // Properties bar
                 if showPropertiesBar && !isDragging {
-                    VStack {
+                    let propertiesBarY = adjustedNoteY - (noteHeight / 2) - propertiesBarGap - (propertiesBarHeight / 2)
+                    
+                    VStack(spacing: 0) {
                         PropertiesBar(
                             note: note,
                             onDelete: {
@@ -72,108 +166,223 @@ struct StickyNoteView: View {
                             ),
                             selectedFontStyle: $selectedFontStyle
                         )
-                        .frame(width: 320)
-                        .scaleEffect(showPropertiesBar ? 1 : 0.9)
-                        .offset(y: showPropertiesBar ? -50 : -35)
-                        .opacity(showPropertiesBar ? 1 : 0)
-                        Spacer()
+                        .frame(width: min(460, max(noteWidth + propertiesBarPadding, 380))) // Ensure minimum width and proper scaling
                     }
+                    .position(x: geometry.size.width / 2, y: propertiesBarY)
+                    .zIndex(2000)
                 }
                 
-                // Main sticky note with computed width
-                ZStack {
-                    // Base background
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(note.style.backgroundColor)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                            .strokeBorder(
-                                note.style.backgroundColor.darker(by: 0.1),
-                                lineWidth: 1
-                            )
-                            .opacity(0.3)
-                        )
-                        .shadow(
-                            color: Color.black.opacity(isDragging ? 0.3 : 0.1),
-                            radius: isDragging ? 20 : 10,
-                            x: 0,
-                            y: isDragging ? 10 : 5
-                        )
-                        .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: noteWidth)
-                        .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: noteHeight)
-                    
-                    VStack(spacing: 0) {
-                        // Header with properties bar
-                        PropertiesBar(note: note)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                        
-                        // Todo items list
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(note.items) { currentItem in
-                                    TodoItemView(
-                                        item: currentItem, 
-                                        note: note,
-                                        onStartEditing: { 
-                                            editingItem = currentItem 
-                                        },
-                                        onUpdate: { newText in 
-                                            currentItem.text = newText 
-                                        },
-                                        onDelete: {
-                                            if let index = note.items.firstIndex(where: { $0.id == currentItem.id }) {
-                                                if note.items.count > 1 {
-                                                    note.items.remove(at: index)
-                                                }
-                                            }
-                                        },
-                                        onInsertAfter: {
-                                            if let index = note.items.firstIndex(where: { $0.id == currentItem.id }) {
-                                                let newItem = TodoItem()
-                                                newItem.parentNote = note
-                                                note.items.insert(newItem, at: index + 1)
-                                                editingItem = newItem
-                                            }
-                                        },
-                                        onColorChange: { color, range in
-                                            currentItem.textColor = color
-                                        }
-                                    )
-                                }
-                                // Add new item button
-                                Button(action: {
-                                    let newItem = TodoItem()
-                                    newItem.parentNote = note
-                                    note.items.append(newItem)
-                                }) {
-                                    HStack {
-                                        Image(systemName: "plus.circle.fill")
-                                        Text("Add item")
-                                    }
-                                    .foregroundColor(.gray)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                        }
-                    }
-                    .frame(width: noteWidth, height: noteHeight)
-                    .background(note.style.backgroundColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    
-                    confettiLayer
-                }
-                .frame(width: noteWidth, height: noteHeight)
-                .cornerRadius(20)
-                .scaleEffect(elevation)
-                .rotationEffect(.degrees(rotation))
-                .opacity(opacity)
-                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                .gesture(dragGesture)
+                confettiLayer
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipShape(Rectangle().scale(1.5)) // Scale the clip shape to allow overflow
         }
+        .frame(
+            minWidth: noteWidth + 80,
+            minHeight: noteHeight + propertiesBarHeight + propertiesBarGap + minimumTopSpace + 80
+        )
+        .onAppear {
+            NotificationCenter.default.addObserver(forName: NSNotification.Name("MoveToPreviousItem"), object: nil, queue: .main) { _ in
+                handleMoveToPreviousItem()
+            }
+            NotificationCenter.default.addObserver(forName: NSNotification.Name("MoveToNextItem"), object: nil, queue: .main) { _ in
+                handleMoveToNextItem()
+            }
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ShowColorPicker"),
+                object: nil,
+                queue: .main) { [self] notification in
+                if let _ = notification.userInfo?["range"] as? NSRange {
+                    withAnimation {
+                        showPropertiesBar = true
+                    }
+                }
+            }
+        }
+    }
+    
+    private var todoListContent: some View {
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                ScrollViewReader { proxy in
+                    VStack(alignment: .leading, spacing: 8) {
+                        if note.items.isEmpty {
+                            emptyStateView
+                        } else {
+                            ForEach(Array(sortedItems.enumerated()), id: \.element.id) { index, item in
+                                TodoItemView(
+                                    item: item,
+                                    isEditing: editingItemId == item.id,
+                                    note: note,
+                                    onStartEditing: {
+                                        editingItemId = item.id
+                                        currentEditingIndex = index
+                                    },
+                                    onToggle: {
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                            note.items[index].isCompleted.toggle()
+                                            checkCompletion()
+                                        }
+                                    },
+                                    onUpdate: { newText in
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                            note.items[index].text = newText
+                                            
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                                withAnimation {
+                                                    proxy.scrollTo(item.id, anchor: .bottom)
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onDelete: {
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                note.items.remove(at: index)
+                                                
+                                                if !note.items.isEmpty {
+                                                    let newIndex = max(0, index - 1)
+                                                    let newItem = note.items[newIndex]
+                                                    editingItemId = newItem.id
+                                                } else {
+                                                    editingItemId = nil
+                                                    isFocused = true
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onInsertAfter: {
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                            let newItem = TodoItem(
+                                                text: "",
+                                                isCompleted: false,
+                                                textColor: selectedColor,
+                                                fontSize: selectedFontSize,
+                                                fontStyle: selectedFontStyle
+                                            )
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                note.items.insert(newItem, at: index + 1)
+                                                editingItemId = newItem.id
+                                            }
+                                        }
+                                    },
+                                    onColorChange: { color, range in
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                            note.items[index].textColor = color
+                                        }
+                                    }
+                                )
+                                .id(item.id)
+                            }
+                        }
+                        
+                        Spacer().frame(height: bottomSafeArea)
+                    }
+                    .onAppear {
+                        scrollProxy = proxy
+                    }
+                    .onChange(of: editingItemId) { newValue in
+                        if let id = newValue {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation {
+                                    proxy.scrollTo(id, anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(height: noteHeight - contentTopPadding - bottomSafeArea - 60)
+            .scrollIndicators(.visible)
+            .onTapGesture {
+                isViewActive = true
+                handleTap()
+            }
+            
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    note.style.backgroundColor.opacity(0.0),
+                    note.style.backgroundColor.opacity(0.1),
+                    note.style.backgroundColor.opacity(0.4),
+                    note.style.backgroundColor
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 24)
+            .padding(.bottom, bottomSafeArea)
+            .allowsHitTesting(false)
+        }
+        .frame(height: noteHeight - contentTopPadding - bottomSafeArea - 60)
+    }
+    
+    private var emptyStateView: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: newItemText.isEmpty ? "circle.dotted" : "circle")
+                .foregroundColor(newItemText.isEmpty ? .gray.opacity(0.4) : .gray)
+                .font(.system(size: 16))
+                .frame(width: checkboxWidth, alignment: .center)
+                .allowsHitTesting(false)
+            
+            CustomTextField(
+                text: $newItemText,
+                isFocused: true,
+                textColor: selectedColor,
+                fontSize: selectedFontSize,
+                fontStyle: selectedFontStyle,
+                isCompleted: false,
+                selectedRange: .constant(nil),
+                onUpdate: { _ in },
+                onSubmit: {
+                    if !newItemText.isEmpty {
+                        let firstItem = TodoItem(
+                            text: newItemText,
+                            isCompleted: false,
+                            textColor: selectedColor,
+                            fontSize: selectedFontSize,
+                            fontStyle: selectedFontStyle
+                        )
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            note.items.append(firstItem)
+                            newItemText = ""
+                            
+                            let newItem = TodoItem(
+                                text: "",
+                                isCompleted: false,
+                                textColor: selectedColor,
+                                fontSize: selectedFontSize,
+                                fontStyle: selectedFontStyle
+                            )
+                            note.items.append(newItem)
+                            editingItemId = newItem.id
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation {
+                                    scrollProxy?.scrollTo(newItem.id, anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
+                },
+                onDelete: { },
+                onColorChange: { _, _ in },
+                note: note
+            )
+            .frame(maxWidth: .infinity)
+            .overlay(
+                Group {
+                    if newItemText.isEmpty {
+                        Text("Add to do items")
+                            .foregroundColor(.gray.opacity(0.4))
+                            .font(Font(selectedFontStyle.font(size: selectedFontSize.size)))
+                            .allowsHitTesting(false)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
     }
     
     private var confettiLayer: some View {
@@ -209,9 +418,9 @@ struct StickyNoteView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if !isDragging {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.65)) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         isDragging = true
-                        elevation = 1.08
+                        elevation = 1.05
                         if showPropertiesBar {
                             showPropertiesBar = false
                         }
@@ -219,28 +428,38 @@ struct StickyNoteView: View {
                 }
                 
                 let dragX = value.translation.width
-                let targetRotation = min(max(dragX * 0.2, -10), 10)
+                let targetRotation = min(max(dragX * 0.15, -8), 8)
                 
-                withAnimation(.interactiveSpring()) {
+                withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.6)) {
                     dragRotation = targetRotation
                 }
                 
                 lastDragValue = dragX
             }
             .onEnded { value in
-                let velocity = lastDragValue * 0.05
+                let velocity = value.predictedEndTranslation.width * 0.05
                 isDragging = false
                 
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     dragRotation = 0
-                    elevation = 0.97
+                    elevation = 0.98
                 }
                 
                 if abs(velocity) > 0.5 {
-                    handleDragEndAnimation(velocity: velocity)
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                        dragRotation = velocity * 0.2
+                    }
+                    
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.1)) {
+                        dragRotation = -velocity * 0.1
+                    }
+                    
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8).delay(0.2)) {
+                        dragRotation = 0
+                    }
                 }
                 
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8).delay(0.5)) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.3)) {
                     elevation = 1.0
                 }
                 
@@ -250,11 +469,11 @@ struct StickyNoteView: View {
     
     private func handleDragEndAnimation(velocity: CGFloat) {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
-            followThroughRotation = velocity * 0.5
+            followThroughRotation = velocity * 0.8
         }
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7).delay(0.2)) {
-            followThroughRotation = -velocity * 0.2
+            followThroughRotation = -velocity * 0.3
         }
         
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8).delay(0.4)) {

@@ -2,18 +2,18 @@ import SwiftUI
 import Shimmer
 
 enum StickyNoteStyle: String, CaseIterable {
-    case lavender
-    case banana
-    case kiwi
+    case lavender // Changed from brown
+    case banana   // Changed from yellow
+    case kiwi     // Changed from blue
     
     var backgroundColor: Color {
         switch self {
         case .lavender:
-            return Color(red: 0xE5 / 255.0, green: 0xD7 / 255.0, blue: 0xEE / 255.0)
+            return Color(red: 0xE5 / 255.0, green: 0xD7 / 255.0, blue: 0xEE / 255.0) // Purple (#E5D7EE)
         case .banana:
-            return Color(red: 0xFF / 255.0, green: 0xEB / 255.0, blue: 0xBE / 255.0)
+            return Color(red: 0xFF / 255.0, green: 0xEB / 255.0, blue: 0xBE / 255.0) // Yellow (#FFEBBE)
         case .kiwi:
-            return Color(red: 0xCF / 255.0, green: 0xE8 / 255.0, blue: 0xBE / 255.0)
+            return Color(red: 0xCF / 255.0, green: 0xE8 / 255.0, blue: 0xBE / 255.0) // Green (#CFE8BE)
         }
     }
 }
@@ -30,39 +30,28 @@ enum StickyNoteSize: String, CaseIterable {
     
     var dimensions: (width: CGFloat, height: CGFloat) {
         switch self {
-        case .small: return (300, 370)
-        case .medium: return (350, 420)
-        case .large: return (400, 470)
+        case .small: return (320, 400)
+        case .medium: return (380, 450)
+        case .large: return (440, 480) 
         }
     }
 }
 
-class StickyNote: ObservableObject, Identifiable {
+class StickyNote: Identifiable, ObservableObject {
     let id = UUID()
-    let style: StickyNoteStyle
-    
+    var style: StickyNoteStyle
     @Published var items: [TodoItem]
     @Published var position: CGPoint
-    @Published var listStyle: ListStyle
-    @Published var isShimmering: Bool
-    @Published var fontStyle: FontStyle
-    @Published var noteSize: StickyNoteSize
-    @Published var fontSize: FontSize
+    @Published var listStyle: ListStyle = .checkbox
+    @Published var isShimmering = false
+    @Published var fontStyle: FontStyle = .simple
+    @Published var noteSize: StickyNoteSize = .medium
+    @Published var fontSize: FontSize = .medium
     
     init(style: StickyNoteStyle) {
         self.style = style
-        self.position = CGPoint(x: 0, y: 0)
-        self.listStyle = .checkbox
-        self.isShimmering = false
-        self.fontStyle = .simple
-        self.noteSize = .medium
-        self.fontSize = .medium
         self.items = []
-        
-        // Initialize with one empty TodoItem
-        let initialItem = TodoItem()
-        initialItem.parentNote = self
-        self.items = [initialItem]
+        self.position = CGPoint(x: 0, y: 0)
     }
     
     func updateNoteSize(to newSize: StickyNoteSize) {
@@ -86,11 +75,5 @@ class StickyNote: ObservableObject, Identifiable {
                 self.isShimmering = false
             }
         }
-    }
-    
-    func addNewItem() {
-        let newItem = TodoItem()
-        newItem.parentNote = self
-        items.append(newItem)
     }
 }
