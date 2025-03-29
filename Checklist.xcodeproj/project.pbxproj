@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		8683600D2D4FF3A300FA5998 /* ConfettiSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8683600C2D4FF3A300FA5998 /* ConfettiSwiftUI */; };
+		86AD4C0C2D981ED800A0AC2D /* AnimateText in Frameworks */ = {isa = PBXBuildFile; productRef = 86AD4C0B2D981ED800A0AC2D /* AnimateText */; };
 		86B6485A2D902AF5005A7D08 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 86B648592D902AF5005A7D08 /* Sparkle */; };
 		86B6485D2D902C3B005A7D08 /* CheckForupdaes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86B6485C2D902C34005A7D08 /* CheckForupdaes.swift */; };
 		86DA58002D61DDC00048F5D5 /* Shimmer in Frameworks */ = {isa = PBXBuildFile; productRef = 86DA57FF2D61DDC00048F5D5 /* Shimmer */; };
@@ -72,6 +73,7 @@
 				8683600D2D4FF3A300FA5998 /* ConfettiSwiftUI in Frameworks */,
 				86F7EBC82D3CCDAC0085EA8A /* Metal.framework in Frameworks */,
 				86F7EBCA2D3CCDB50085EA8A /* MetalKit.framework in Frameworks */,
+				86AD4C0C2D981ED800A0AC2D /* AnimateText in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -148,6 +150,7 @@
 				8683600C2D4FF3A300FA5998 /* ConfettiSwiftUI */,
 				86DA57FF2D61DDC00048F5D5 /* Shimmer */,
 				86B648592D902AF5005A7D08 /* Sparkle */,
+				86AD4C0B2D981ED800A0AC2D /* AnimateText */,
 			);
 			productName = Checklist;
 			productReference = 86ABF3042D358F3500757E2C /* Float.app */;
@@ -235,6 +238,7 @@
 				8683600B2D4FF3A300FA5998 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
 				86DA57FE2D61DDC00048F5D5 /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */,
 				86B648582D902AF5005A7D08 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				86AD4C0A2D981ED800A0AC2D /* XCRemoteSwiftPackageReference "AnimateText" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 86ABF3052D358F3500757E2C /* Products */;
@@ -610,6 +614,14 @@
 				minimumVersion = 2.0.2;
 			};
 		};
+		86AD4C0A2D981ED800A0AC2D /* XCRemoteSwiftPackageReference "AnimateText" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jasudev/AnimateText";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.5.0;
+			};
+		};
 		86B648582D902AF5005A7D08 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -633,6 +645,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8683600B2D4FF3A300FA5998 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */;
 			productName = ConfettiSwiftUI;
+		};
+		86AD4C0B2D981ED800A0AC2D /* AnimateText */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 86AD4C0A2D981ED800A0AC2D /* XCRemoteSwiftPackageReference "AnimateText" */;
+			productName = AnimateText;
 		};
 		86B648592D902AF5005A7D08 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import AnimateText
 
 struct TodoItem: Identifiable, Codable, Equatable {
     let id: UUID
@@ -57,5 +58,20 @@ struct TodoItem: Identifiable, Codable, Equatable {
                lhs.fontSize == rhs.fontSize &&
                lhs.fontStyle == rhs.fontStyle &&
                lhs.createdAt == rhs.createdAt
+    }
+}
+
+struct AnimatedTodoText: View {
+    let text: String
+    let fontSize: FontSize
+    let fontStyle: FontStyle
+    let textColor: Color
+    let isCompleted: Bool
+    
+    var body: some View {
+        AnimateText(text, font: fontStyle.font(size: fontSize.size))
+            .foregroundColor(textColor)
+            .strikethrough(isCompleted, color: textColor)
+            .animation(.spring(response: 0.4, dampingFraction: 0.7))
     }
 }

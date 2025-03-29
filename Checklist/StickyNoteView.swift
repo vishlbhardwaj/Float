@@ -2,6 +2,62 @@ import SwiftUI
 import AppKit
 import ConfettiSwiftUI
 
+// Add RippleModifier for font size changes
+struct FontSizeRippleModifier: ViewModifier {
+    var origin: CGPoint
+    var elapsedTime: TimeInterval
+    var duration: TimeInterval
+    var isActive: Bool
+    
+    func body(content: Content) -> some View {
+        content
+            .visualEffect { content, proxy in
+                content
+                    .scaleEffect(
+                        isActive ? 
+                        1.0 + sin(elapsedTime * 15) * 0.02 * (1 - elapsedTime / duration) : 1.0,
+                        anchor: .center
+                    )
+                    .blur(radius: isActive ? 0.5 * (1 - elapsedTime / duration) : 0)
+            }
+            .animation(.smooth, value: isActive)
+    }
+}
+
+// New ViewModifier for staggered animations
+struct StaggeredFontSizeModifier: ViewModifier {
+    let index: Int
+    let isChanging: Bool
+    let delay: TimeInterval
+    @State private var opacity: Double = 1
+    @State private var blur: CGFloat = 0
+    @State private var scale: CGFloat = 1
+    
+    func body(content: Content) -> some View {
+        content
+            .opacity(opacity)
+            .blur(radius: blur)
+            .scaleEffect(scale)
+            .onChange(of: isChanging) { isChanging in
+                if isChanging {
+                    // Staggered fade out
+                    withAnimation(.easeInOut(duration: 0.2).delay(delay * Double(index))) {
+                        opacity = 0
+                        blur = 5
+                        scale = 0.95
+                    }
+                } else {
+                    // Staggered fade in
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7).delay(delay * Double(index))) {
+                        opacity = 1
+                        blur = 0
+                        scale = 1
+                    }
+                }
+            }
+    }
+}
+
 struct StickyNoteView: View {
     @ObservedObject var note: StickyNote
     @State private var editingItemId: UUID?
@@ -33,6 +89,15 @@ struct StickyNoteView: View {
     @State private var horizontalStretch: CGFloat = 1.0
     @State private var verticalStretch: CGFloat = 1.0
     @State private var resizeRotation: CGFloat = 0
+    
+    // New properties for ripple effect
+    @State private var rippleOrigin: CGPoint = .zero
+    @State private var isRippling: Bool = false
+    @State private var rippleElapsedTime: TimeInterval = 0
+    let rippleDuration: TimeInterval = 0.5
+    
+    @State private var isAnimatingFontChange: Bool = false
+    private let staggerDelay: TimeInterval = 0.03
     
     let creationDate: Date = Date()
     var onDelete: () -> Void
@@ -93,23 +158,22 @@ struct StickyNoteView: View {
                     selectedFontSize: Binding(
                         get: { note.fontSize },
                         set: { newSize in
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                isChangingTextSize = true
-                                textSizeScale = newSize.size > note.fontSize.size ? 1.05 : 0.95
+                            // Start staggered animation
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                isAnimatingFontChange = true
                             }
                             
-                            // Apply the new size with a slight delay
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            // Update font size after brief delay
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                                     note.updateTextSize(to: newSize)
                                 }
-                            }
-                            
-                            // Reset the scale with a spring animation
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.65)) {
-                                    textSizeScale = 1.0
-                                    isChangingTextSize = false
+                                
+                                // End staggered animation
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    withAnimation(.easeInOut(duration: 0.1)) {
+                                        isAnimatingFontChange = false
+                                    }
                                 }
                             }
                         }
@@ -241,6 +305,16 @@ struct StickyNoteView: View {
             minHeight: noteHeight + propertiesBarHeight + 16 + minimumTopSpace + 40
         )
         .ignoresSafeArea()
+        .onAppear {
+            // Start a timer for ripple animation
+            Timer.publish(every: 1/60, on: .main, in: .common)
+                .autoconnect()
+                .sink { _ in
+                    if isRippling {
+                        rippleElapsedTime += 1/60
+                    }
+                }
+        }
     }
     
     private var todoListContent: some View {
@@ -321,6 +395,11 @@ struct StickyNoteView: View {
                                 }
                                 )
                                 .id(item.id)
+                                .modifier(StaggeredFontSizeModifier(
+                                    index: index,
+                                    isChanging: isAnimatingFontChange,
+                                    delay: staggerDelay
+                                ))
                                 .transition(.opacity.combined(with: .move(edge: .leading)))
                             }
                         }
