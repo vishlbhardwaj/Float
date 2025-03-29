@@ -19,11 +19,12 @@ struct TodoItemView: View {
     @State private var selectedRange: NSRange?
     @State private var opacity: Double = 1.0
     @State private var blurRadius: CGFloat = 0
-    @State private var verticalOffset: CGFloat = 0
+    @State private var verticalOffset: CGFloat = 20
     @State private var scale: CGFloat = 1
     @State private var isUpdatingSize: Bool = false
     @State private var currentFontSize: FontSize
     @State private var shouldShowText: Bool = true
+    @State private var isTransitioning: Bool = false
     
     private var itemHeight: CGFloat {
         currentFontSize.size * 1.8
@@ -56,25 +57,27 @@ struct TodoItemView: View {
     }
     
     private func performResizeAnimation() {
+        let reverseIndex = totalItems - 1 - index
+        
         // First hide all items quickly
-        withAnimation(.easeOut(duration: 0.2)) {
+        withAnimation(.easeOut(duration: 0.15)) {
             opacity = 0
             blurRadius = 10
-            scale = 0.98
+            scale = 0.85
             shouldShowText = false
             isUpdatingSize = true
         }
         
         // Update the font size while content is hidden
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             currentFontSize = note.fontSize
             
-            // Stagger the reappearance of items from top to bottom
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(self.index) * 0.08) {
+            // Stagger the reappearance of items from bottom to top with more bouncy animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(reverseIndex) * 0.08) {
                 withAnimation(.spring(
                     response: 0.6,
-                    dampingFraction: 0.8,
-                    blendDuration: 0.3
+                    dampingFraction: 0.6,
+                    blendDuration: 0.5
                 )) {
                     opacity = 1
                     blurRadius = 0
@@ -87,7 +90,7 @@ struct TodoItemView: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Button(action: {
                 if !item.text.isEmpty {
                     withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
@@ -109,18 +112,18 @@ struct TodoItemView: View {
             }
             .buttonStyle(PlainButtonStyle())
             .scaleEffect(isPressed ? 0.8 : 1.0)
-            .opacity(opacity)
-            .blur(radius: blurRadius)
+            .opacity(isTransitioning ? 0 : opacity)
             .scaleEffect(scale)
+            .offset(y: verticalOffset)
             .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
             .allowsHitTesting(!item.text.isEmpty)
-            .frame(width: 24, alignment: .center)
+            .frame(width: 24, alignment: .top)
             
             if isEditing {
                 Group {
                     if !shouldShowText {
                         Color.clear
-                            .frame(height: currentFontSize.size * 1.5)
+                            .frame(height: itemHeight)
                     } else {
                         CustomTextField(
                             text: $text,
@@ -141,9 +144,10 @@ struct TodoItemView: View {
                             onColorChange: onColorChange,
                             note: note
                         )
+                        .frame(height: itemHeight)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .opacity(opacity)
                 .blur(radius: blurRadius)
                 .scaleEffect(scale)
@@ -151,29 +155,66 @@ struct TodoItemView: View {
                 Group {
                     if !shouldShowText {
                         Color.clear
-                            .frame(height: currentFontSize.size * 1.5)
+                            .frame(height: itemHeight)
                     } else {
                         Text(item.text)
-                            .font(Font(item.fontStyle.font(size: currentFontSize.size)))
+                            .font(.init(item.fontStyle.font(size: currentFontSize.size)))
                             .foregroundColor(item.textColor)
                             .strikethrough(note.listStyle == .checkbox && item.isCompleted)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(height: itemHeight, alignment: .center)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .opacity(opacity)
                 .blur(radius: blurRadius)
                 .scaleEffect(scale)
-                .fixedSize(horizontal: false, vertical: true)
                 .contentShape(Rectangle())
                 .onTapGesture { onStartEditing() }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
-        .background(Color.clear)
         .onChange(of: note.fontSize) { _, _ in
             performResizeAnimation()
         }
+    }
+    
+    private var emptyStateView: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: item.text.isEmpty ? "circle.dotted" : "circle")
+                .foregroundColor(item.text.isEmpty ? .gray.opacity(0.4) : .gray)
+                .font(.system(size: note.fontSize.size))
+                .opacity(item.text.isEmpty ? 0.4 : 1)
+                .frame(width: 24, height: note.fontSize.size * 1.8, alignment: .center)
+                .allowsHitTesting(false)
+            
+            CustomTextField(
+                text: .constant(""),
+                isFocused: true,
+                textColor: .black,
+                fontSize: note.fontSize,
+                fontStyle: .simple,
+                isCompleted: false,
+                selectedRange: .constant(nil),
+                onUpdate: { _ in },
+                onSubmit: { },
+                onDelete: { },
+                onColorChange: { _, _ in },
+                note: note
+            )
+            .frame(height: note.fontSize.size * 1.8)
+            .frame(maxWidth: .infinity)
+            .overlay(
+                Text("Add to do items")
+                    .foregroundColor(.gray.opacity(0.4))
+                    .font(.init(FontStyle.simple.font(size: note.fontSize.size)))
+                    .allowsHitTesting(false)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        }
+        .frame(height: note.fontSize.size * 1.8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -210,7 +251,7 @@ struct CustomTextField: NSViewRepresentable {
             guard let cell = self.cell, let note = note else { return super.intrinsicContentSize }
             
             let width: CGFloat = max(240, note.noteSize.dimensions.width - 80)
-            let height = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude)).height
+            let height = CGFloat.greatestFiniteMagnitude
             
             return NSSize(width: width, height: height)
         }
@@ -256,7 +297,7 @@ struct CustomTextField: NSViewRepresentable {
         textField.isCompleted = isCompleted
         
         textField.cell?.wraps = true
-        textField.cell?.isScrollable = false
+        textField.cell?.isScrollable = true
         textField.cell?.truncatesLastVisibleLine = false
         textField.maximumNumberOfLines = 0
         textField.preferredMaxLayoutWidth = max(240, note.noteSize.dimensions.width - 80)
@@ -311,7 +352,7 @@ struct CustomTextField: NSViewRepresentable {
             DispatchQueue.main.async {
                 nsView.window?.makeFirstResponder(nsView)
                 if let editor = nsView.currentEditor() {
-                    if let range = self.selectedRange {
+                    if let range = selectedRange {
                         editor.selectedRange = range
                     } else {
                         editor.selectedRange = NSRange(location: nsView.stringValue.count, length: 0)
