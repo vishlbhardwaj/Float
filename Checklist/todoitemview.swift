@@ -3,247 +3,162 @@ import AppKit
 
 struct TodoItemView: View {
     let item: TodoItem
-    let isEditing: Bool
-    let onStartEditing: () -> Void
-    let onToggle: () -> Void
-    let onUpdate: (String) -> Void
-    let onDelete: () -> Void
-    let onInsertAfter: () -> Void
-    let onColorChange: (Color, NSRange?) -> Void
-    @ObservedObject var note: StickyNote
-    
-    @State private var text: String
-    @State private var isPressed: Bool = false
-    @State private var selectedRange: NSRange?
-    
-    init(item: TodoItem,
-         isEditing: Bool,
-         note: StickyNote,
-         onStartEditing: @escaping () -> Void,
-         onToggle: @escaping () -> Void,
-         onUpdate: @escaping (String) -> Void,
-         onDelete: @escaping () -> Void,
-         onInsertAfter: @escaping () -> Void,
-         onColorChange: @escaping (Color, NSRange?) -> Void) {
-        self.item = item
-        self.isEditing = isEditing
-        self.note = note
-        self.onStartEditing = onStartEditing
-        self.onToggle = onToggle
-        self.onUpdate = onUpdate
-        self.onDelete = onDelete
-        self.onInsertAfter = onInsertAfter
-        self.onColorChange = onColorChange
-        self._text = State(initialValue: item.text)
-    }
+    var isEditing: Bool
+    let note: StickyNote
+    var onStartEditing: () -> Void
+    var onToggle: () -> Void
+    var onUpdate: (String) -> Void
+    var onDelete: () -> Void
+    var onInsertAfter: () -> Void
+    var onColorChange: (Color, NSRange?) -> Void
+
+    @State private var itemHeight: CGFloat = 0
+    @State private var isWrapping: Bool = false
     
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            Button(action: {
-                if !item.text.isEmpty {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-                        isPressed = true
-                    }
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            onToggle()
-                            isPressed = false
-                        }
+            // Checkbox
+            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(item.isCompleted ? .gray : .gray.opacity(0.4))
+                .font(.system(size: 16))
+                .frame(width: 24, alignment: .center)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        onToggle()
                     }
                 }
-            }) {
-                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : (item.text.isEmpty ? "circle.dotted" : "circle"))
-                    .foregroundColor(item.text.isEmpty ? .gray.opacity(0.4) : (item.isCompleted ? .gray : .gray))
-                    .font(.system(size: note.fontSize.size))
-                    .opacity(item.text.isEmpty ? 0.4 : (item.isCompleted ? 1 : 1))
-            }
-            .buttonStyle(PlainButtonStyle())
-            .scaleEffect(isPressed ? 0.8 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
-            .allowsHitTesting(!item.text.isEmpty)
-            .frame(width: 24, alignment: .center)
             
-            if isEditing {
-                CustomTextField(
-                    text: $text,
-                    isFocused: true,
-                    textColor: item.textColor,
-                    fontSize: note.fontSize,
-                    fontStyle: item.fontStyle,
-                    isCompleted: note.listStyle == .checkbox && item.isCompleted,
-                    selectedRange: $selectedRange,
-                    onUpdate: { newText in
-                        if newText.isEmpty && item.isCompleted {
-                            onToggle()
-                        }
-                        onUpdate(newText)
-                    },
-                    onSubmit: onInsertAfter,
-                    onDelete: onDelete,
-                    onColorChange: onColorChange,
-                    note: note
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .opacity(note.listStyle == .checkbox && item.isCompleted ? 0.6 : 1.0)
-                .animation(.easeOut(duration: 0.2), value: item.isCompleted)
-            } else {
-                Text(item.text)
-                    .font(Font(item.fontStyle.font(size: note.fontSize.size)))
-                    .foregroundColor(item.textColor)
-                    .strikethrough(note.listStyle == .checkbox && item.isCompleted)
-                    .opacity(note.listStyle == .checkbox && item.isCompleted ? 0.6 : 1.0)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .lineLimit(nil)
-                    .onTapGesture { onStartEditing() }
-                    .contentShape(Rectangle())
+            // Text field with improved wrapping behavior
+            CustomTextField(
+                text: Binding(
+                    get: { item.text },
+                    set: { onUpdate($0) }
+                ),
+                isFocused: isEditing,
+                textColor: item.textColor,
+                fontSize: item.fontSize,
+                fontStyle: item.fontStyle,
+                isCompleted: item.isCompleted,
+                selectedRange: .constant(nil),
+                onUpdate: { _ in },
+                onSubmit: onInsertAfter,
+                onDelete: onDelete,
+                onColorChange: onColorChange,
+                note: note
+            )
+            .background(
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: TextHeightPreferenceKey.self,
+                        value: geometry.size.height
+                    )
+                }
+            )
+            .onPreferenceChange(TextHeightPreferenceKey.self) { height in 
+                if height != itemHeight {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        itemHeight = height
+                        isWrapping = true
+                    }
+                    
+                    // Reset wrapping state after animation
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        isWrapping = false
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onStartEditing()
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
+        .frame(height: itemHeight)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: itemHeight)
+        .scaleEffect(y: isWrapping ? 0.98 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isWrapping)
     }
 }
 
+// Add height preference key
+struct TextHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+// Custom NSTextField wrapper that handles text layout
 struct CustomTextField: NSViewRepresentable {
     @Binding var text: String
-    let isFocused: Bool
-    let textColor: Color
-    let fontSize: FontSize
-    let fontStyle: FontStyle
-    let isCompleted: Bool
+    var isFocused: Bool
+    var textColor: Color
+    var fontSize: FontSize
+    var fontStyle: FontStyle
+    var isCompleted: Bool
     @Binding var selectedRange: NSRange?
-    let onUpdate: (String) -> Void
-    let onSubmit: () -> Void
-    let onDelete: () -> Void
-    let onColorChange: (Color, NSRange?) -> Void
-    @ObservedObject var note: StickyNote
+    var onUpdate: (NSRange?) -> Void
+    var onSubmit: () -> Void
+    var onDelete: () -> Void
+    var onColorChange: (Color, NSRange?) -> Void
+    var note: StickyNote
     
-    class MultilineTextField: NSTextField {
-        var isCompleted: Bool = false
-        var fontSizeValue: CGFloat = 16
-        var fontStyleValue: FontStyle = .simple
-        var textColorValue: NSColor = .textColor
-        weak var note: StickyNote?
-        
-        required init?(coder: NSCoder) {
-            super.init(coder: coder)
-        }
-        
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect)
-        }
-        
-        override var intrinsicContentSize: NSSize {
-            guard let cell = self.cell, let note = note else { return super.intrinsicContentSize }
-            
-            let width: CGFloat = max(240, note.noteSize.dimensions.width - 80)
-            let height = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude)).height
-            
-            return NSSize(width: width, height: height)
-        }
-        
-        override func textDidChange(_ notification: Notification) {
-            super.textDidChange(notification)
-            
-            invalidateIntrinsicContentSize()
-            needsLayout = true
-            superview?.needsLayout = true
-        }
-        
-        override func mouseDown(with event: NSEvent) {
-            super.mouseDown(with: event)
-            
-            NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
-                if let textView = self?.currentEditor() as? NSTextView,
-                   let selectedRange = textView.selectedRanges.first?.rangeValue,
-                   selectedRange.length > 0 {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("ShowColorPicker"),
-                        object: nil,
-                        userInfo: ["range": selectedRange]
-                    )
-                }
-                return event
-            }
-        }
-    }
-    
-    func makeNSView(context: Context) -> MultilineTextField {
-        let textField = MultilineTextField(frame: .zero)
-        textField.note = note
-        textField.delegate = context.coordinator
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+        textField.isEditable = true
         textField.isBordered = false
         textField.drawsBackground = false
-        textField.focusRingType = .none
-        textField.font = fontStyle.font(size: fontSize.size)
-        textField.fontSizeValue = fontSize.size
-        textField.fontStyleValue = fontStyle
-        textField.textColor = NSColor(textColor)
-        textField.textColorValue = NSColor(textColor)
-        textField.isCompleted = isCompleted
+        textField.delegate = context.coordinator
         
-        textField.cell?.wraps = true
-        textField.cell?.isScrollable = false
-        textField.cell?.truncatesLastVisibleLine = false
-        textField.maximumNumberOfLines = 0
-        textField.preferredMaxLayoutWidth = max(240, note.noteSize.dimensions.width - 80)
-        
-        textField.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(rawValue: 750), for: .horizontal)
-        textField.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(rawValue: 1000), for: .vertical)
-        textField.setContentHuggingPriority(NSLayoutConstraint.Priority(rawValue: 250), for: .horizontal)
-        textField.setContentHuggingPriority(NSLayoutConstraint.Priority(rawValue: 250), for: .vertical)
+        // Configure cell properties
+        if let cell = textField.cell as? NSTextFieldCell {
+            cell.wraps = true
+            cell.isScrollable = false
+            cell.truncatesLastVisibleLine = false
+            cell.usesSingleLineMode = false
+            
+            // Add proper line breaking and wrapping behavior
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.lineBreakMode = .byWordWrapping
+            paragraphStyle.lineSpacing = 2
+            
+            let attributes: [NSAttributedString.Key: Any] = [
+                .paragraphStyle: paragraphStyle
+            ]
+            
+            cell.attributedStringValue = NSAttributedString(string: text, attributes: attributes)
+        }
         
         return textField
     }
     
-    func updateNSView(_ nsView: MultilineTextField, context: Context) {
-        nsView.fontSizeValue = fontSize.size
-        nsView.fontStyleValue = fontStyle
-        nsView.textColorValue = NSColor(textColor)
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        nsView.stringValue = text
         nsView.font = fontStyle.font(size: fontSize.size)
-        nsView.textColor = NSColor(textColor)
-        nsView.isCompleted = isCompleted
+        nsView.textColor = NSColor(textColor).withAlphaComponent(isCompleted ? 0.5 : 1.0)
         
-        if nsView.stringValue != text {
-            let attributedString = NSMutableAttributedString(string: text)
-            if isCompleted {
-                attributedString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: text.count))
-                attributedString.addAttribute(.foregroundColor, value: NSColor(textColor).withAlphaComponent(0.6), range: NSRange(location: 0, length: text.count))
-            } else {
-                attributedString.addAttribute(.foregroundColor, value: NSColor(textColor), range: NSRange(location: 0, length: text.count))
-            }
-            attributedString.addAttribute(.font, value: fontStyle.font(size: fontSize.size), range: NSRange(location: 0, length: text.count))
-            nsView.attributedStringValue = attributedString
-        }
-        
-        if let textView = nsView.currentEditor() as? NSTextView,
-           let storage = textView.textStorage {
-            let attributedString = NSMutableAttributedString(string: text)
+        // Update paragraph style
+        if let cell = nsView.cell as? NSTextFieldCell {
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.lineBreakMode = .byWordWrapping
+            paragraphStyle.lineSpacing = 2
             
-            if isCompleted {
-                attributedString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: text.count))
-                attributedString.addAttribute(.foregroundColor, value: NSColor(textColor).withAlphaComponent(0.6), range: NSRange(location: 0, length: text.count))
-            } else {
-                attributedString.addAttribute(.foregroundColor, value: NSColor(textColor), range: NSRange(location: 0, length: text.count))
-            }
+            let attributes: [NSAttributedString.Key: Any] = [
+                .paragraphStyle: paragraphStyle,
+                .font: fontStyle.font(size: fontSize.size),
+                .foregroundColor: NSColor(textColor).withAlphaComponent(isCompleted ? 0.5 : 1.0)
+            ]
             
-            attributedString.addAttribute(.font, value: fontStyle.font(size: fontSize.size), range: NSRange(location: 0, length: text.count))
-            
-            let selection = textView.selectedRange
-            storage.setAttributedString(attributedString)
-            textView.selectedRange = selection
+            cell.attributedStringValue = NSAttributedString(string: text, attributes: attributes)
         }
         
         if isFocused {
             DispatchQueue.main.async {
                 nsView.window?.makeFirstResponder(nsView)
                 if let editor = nsView.currentEditor() {
-                    if let range = selectedRange {
-                        editor.selectedRange = range
-                    } else {
-                        editor.selectedRange = NSRange(location: nsView.stringValue.count, length: 0)
-                    }
+                    editor.selectedRange = NSRange(location: text.count, length: 0)
                 }
             }
         }
@@ -260,60 +175,35 @@ struct CustomTextField: NSViewRepresentable {
             self.parent = parent
         }
         
-        func controlTextDidChange(_ obj: Notification) {
-            if let textField = obj.object as? MultilineTextField {
-                parent.text = textField.stringValue
-                parent.onUpdate(textField.stringValue)
+        func controlTextDidChange(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else { return }
+            parent.text = textField.stringValue
+            
+            // Update paragraph style on change
+            if let cell = textField.cell as? NSTextFieldCell {
+                let paragraphStyle = NSMutableParagraphStyle()
+                paragraphStyle.lineBreakMode = .byWordWrapping
+                paragraphStyle.lineSpacing = 2
                 
-                if let editor = textField.currentEditor() {
-                    parent.selectedRange = editor.selectedRange
-                    
-                    if let textView = editor as? NSTextView,
-                       let storage = textView.textStorage {
-                        let editorString = NSMutableAttributedString(string: textField.stringValue)
-                        
-                        if parent.isCompleted {
-                            editorString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: textField.stringValue.count))
-                            editorString.addAttribute(.foregroundColor, value: textField.textColorValue.withAlphaComponent(0.6), range: NSRange(location: 0, length: textField.stringValue.count))
-                        } else {
-                            editorString.addAttribute(.foregroundColor, value: textField.textColorValue, range: NSRange(location: 0, length: textField.stringValue.count))
-                        }
-                        
-                        editorString.addAttribute(.font, value: textField.fontStyleValue.font(size: textField.fontSizeValue), range: NSRange(location: 0, length: textField.stringValue.count))
-                        
-                        let selection = textView.selectedRange
-                        storage.setAttributedString(editorString)
-                        textView.selectedRange = selection
-                    }
-                }
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .paragraphStyle: paragraphStyle,
+                    .font: parent.fontStyle.font(size: parent.fontSize.size),
+                    .foregroundColor: NSColor(parent.textColor).withAlphaComponent(parent.isCompleted ? 0.5 : 1.0)
+                ]
+                
+                cell.attributedStringValue = NSAttributedString(string: textField.stringValue, attributes: attributes)
             }
         }
         
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            if commandSelector == #selector(NSResponder.moveUp(_:)) {
-                NotificationCenter.default.post(name: NSNotification.Name("MoveToPreviousItem"), object: nil)
-                return true
-            }
-            
-            if commandSelector == #selector(NSResponder.moveDown(_:)) {
-                NotificationCenter.default.post(name: NSNotification.Name("MoveToNextItem"), object: nil)
-                return true
-            }
-            
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                if !parent.text.isEmpty {
-                    parent.onSubmit()
-                }
+                parent.onSubmit()
                 return true
             }
-            
-            if commandSelector == #selector(NSResponder.deleteBackward(_:)) {
-                if parent.text.isEmpty {
-                    parent.onDelete()
-                    return true
-                }
+            if commandSelector == #selector(NSResponder.deleteBackward(_:)), parent.text.isEmpty {
+                parent.onDelete()
+                return true
             }
-            
             return false
         }
     }

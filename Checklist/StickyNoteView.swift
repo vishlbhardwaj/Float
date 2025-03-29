@@ -26,6 +26,14 @@ struct StickyNoteView: View {
     @State private var selectedFontSize: FontSize = .medium
     @State private var selectedFontStyle: FontStyle = .simple
     @State private var currentEditingIndex: Int = 0
+    @State private var isChangingTextSize: Bool = false
+    @State private var textSizeScale: CGFloat = 1.0
+    @State private var isResizing: Bool = false
+    @State private var previousNoteSize: StickyNoteSize?
+    @State private var horizontalStretch: CGFloat = 1.0
+    @State private var verticalStretch: CGFloat = 1.0
+    @State private var resizeRotation: CGFloat = 0
+    
     let creationDate: Date = Date()
     var onDelete: () -> Void
     
@@ -47,37 +55,89 @@ struct StickyNoteView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            ZStack(alignment: .top) {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        isViewActive = false
-                        isFocused = false
-                        editingItemId = nil
-                    }
-                
-                // Calculate vertical positions
-                let totalRequiredSpace = propertiesBarHeight + propertiesBarGap + noteHeight
-                let availableSpace = geometry.size.height
-                let defaultNoteY = geometry.size.height / 2
-                
-                let adjustedNoteY = max(
-                    defaultNoteY,
-                    totalRequiredSpace / 2
+            let totalRequiredSpace = propertiesBarHeight + propertiesBarGap + noteHeight
+            let windowCenter = geometry.size.height / 2
+            
+            // Calculate sticky note position - ensure it's centered or adjusted if needed
+            let adjustedNoteY = max(
+                windowCenter,
+                totalRequiredSpace / 2
+            )
+            
+            // Calculate properties bar position - exactly 16px above note
+            let propertiesBarY = adjustedNoteY - (noteHeight / 2) - 16 - (propertiesBarHeight / 2)
+            
+            // Background for tap handling
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isViewActive = false
+                    isFocused = false
+                    editingItemId = nil
+                }
+            
+            // Properties bar with exact positioning
+            if showPropertiesBar && !isDragging {
+                PropertiesBar(
+                    note: note,
+                    onDelete: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            opacity = 0
+                            showPropertiesBar = false
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            onDelete()
+                        }
+                    },
+                    selectedColor: $selectedColor,
+                    selectedFontSize: Binding(
+                        get: { note.fontSize },
+                        set: { newSize in
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isChangingTextSize = true
+                                textSizeScale = newSize.size > note.fontSize.size ? 1.05 : 0.95
+                            }
+                            
+                            // Apply the new size with a slight delay
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    note.updateTextSize(to: newSize)
+                                }
+                            }
+                            
+                            // Reset the scale with a spring animation
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.65)) {
+                                    textSizeScale = 1.0
+                                    isChangingTextSize = false
+                                }
+                            }
+                        }
+                    ),
+                    selectedFontStyle: $selectedFontStyle
                 )
-                
-                // Main sticky note
+                .frame(width: min(460, max(noteWidth + propertiesBarPadding, 380)))
+                .position(
+                    x: geometry.size.width / 2,
+                    y: max(propertiesBarHeight/2 + minimumTopSpace, propertiesBarY)
+                )
+                .zIndex(2000)
+            }
+
+            // Main sticky note
+            ZStack {
+                // Background and content
                 ZStack {
-                    // Base background
+                    // Background
                     RoundedRectangle(cornerRadius: 20)
                         .fill(note.style.backgroundColor)
                         .overlay(
                             RoundedRectangle(cornerRadius: 20)
-                                .strokeBorder(
-                                    note.style.backgroundColor.darker(by: 0.1),
-                                    lineWidth: 1
-                                )
-                                .opacity(0.3)
+                            .strokeBorder(
+                                note.style.backgroundColor.darker(by: 0.1),
+                                lineWidth: 1
+                            )
+                            .opacity(0.3)
                         )
                         .shadow(
                             color: Color.black.opacity(isDragging ? 0.2 : 0.1),
@@ -85,14 +145,10 @@ struct StickyNoteView: View {
                             x: 0,
                             y: isDragging ? 8 : 4
                         )
-                        .rotationEffect(.degrees(dragRotation))
                     
                     // Content
                     VStack(alignment: .leading, spacing: 0) {
-                        // Top spacer adjusted
-                        Spacer().frame(height: 12)
-                        
-                        // Header section
+                        // Header
                         HStack(spacing: 0) {
                             HStack(spacing: 0) {
                                 Spacer().frame(width: dateLeftOffset)
@@ -123,82 +179,68 @@ struct StickyNoteView: View {
                         
                         Spacer().frame(height: 8)
                         
-                        // Content area with improved spacing
-                        VStack(alignment: .leading, spacing: 0) {
-                            todoListContent
-                        }
+                        // Wrap todoListContent in a scale effect
+                        todoListContent
+                            .scaleEffect(textSizeScale, anchor: .topLeading)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: textSizeScale)
                     }
                     .padding(.horizontal, horizontalPadding)
                     .padding(.top, contentTopPadding)
                     .padding(.bottom, bottomSafeArea)
-                    .frame(width: noteWidth, height: noteHeight)
-                    
-                    confettiLayer
                 }
-                .frame(width: noteWidth, height: noteHeight)
-                .cornerRadius(20)
-                .scaleEffect(elevation)
-                .opacity(opacity)
-                .position(x: geometry.size.width / 2, y: adjustedNoteY)
-                .gesture(dragGesture)
-                .padding(40)
-                
-                // Properties bar
-                if showPropertiesBar && !isDragging {
-                    let propertiesBarY = adjustedNoteY - (noteHeight / 2) - propertiesBarGap - (propertiesBarHeight / 2)
-                    
-                    VStack(spacing: 0) {
-                        PropertiesBar(
-                            note: note,
-                            onDelete: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    opacity = 0
-                                    showPropertiesBar = false
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    onDelete()
-                                }
-                            },
-                            selectedColor: $selectedColor,
-                            selectedFontSize: Binding(
-                                get: { note.fontSize },
-                                set: { note.updateTextSize(to: $0) }
-                            ),
-                            selectedFontStyle: $selectedFontStyle
-                        )
-                        .frame(width: min(460, max(noteWidth + propertiesBarPadding, 380))) // Ensure minimum width and proper scaling
-                    }
-                    .position(x: geometry.size.width / 2, y: propertiesBarY)
-                    .zIndex(2000)
-                }
-                
-                confettiLayer
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipShape(Rectangle().scale(1.5)) // Scale the clip shape to allow overflow
+            .frame(width: noteWidth, height: noteHeight)
+            .rotationEffect(.degrees(dragRotation + resizeRotation))
+            .scaleEffect(elevation)
+            .scaleEffect(x: horizontalStretch, y: verticalStretch)
+            .opacity(opacity)
+            .position(x: geometry.size.width / 2, y: adjustedNoteY)
+            .gesture(dragGesture)
+            .onChange(of: note.noteSize) { newSize in
+                guard let previous = previousNoteSize else {
+                    previousNoteSize = newSize
+                    return
+                }
+                
+                let isGrowing = newSize.dimensions.width > previous.dimensions.width
+                
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    if isGrowing {
+                        horizontalStretch = 1.1
+                        verticalStretch = 0.95
+                        resizeRotation = 2
+                        elevation = 1.05
+                    } else {
+                        horizontalStretch = 0.95
+                        verticalStretch = 1.05
+                        resizeRotation = -2
+                        elevation = 0.95
+                    }
+                }
+                
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.65).delay(0.1)) {
+                    horizontalStretch = 0.98
+                    verticalStretch = 1.02
+                    resizeRotation = isGrowing ? -1 : 1
+                }
+                
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6).delay(0.2)) {
+                    horizontalStretch = 1.0
+                    verticalStretch = 1.0
+                    resizeRotation = 0
+                    elevation = 1.0
+                }
+                
+                previousNoteSize = newSize
+            }
+            
+            confettiLayer
         }
         .frame(
             minWidth: noteWidth + 80,
-            minHeight: noteHeight + propertiesBarHeight + propertiesBarGap + minimumTopSpace + 80
+            minHeight: noteHeight + propertiesBarHeight + 16 + minimumTopSpace + 40
         )
-        .onAppear {
-            NotificationCenter.default.addObserver(forName: NSNotification.Name("MoveToPreviousItem"), object: nil, queue: .main) { _ in
-                handleMoveToPreviousItem()
-            }
-            NotificationCenter.default.addObserver(forName: NSNotification.Name("MoveToNextItem"), object: nil, queue: .main) { _ in
-                handleMoveToNextItem()
-            }
-            NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("ShowColorPicker"),
-                object: nil,
-                queue: .main) { [self] notification in
-                if let _ = notification.userInfo?["range"] as? NSRange {
-                    withAnimation {
-                        showPropertiesBar = true
-                    }
-                }
-            }
-        }
+        .ignoresSafeArea()
     }
     
     private var todoListContent: some View {
@@ -208,76 +250,84 @@ struct StickyNoteView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         if note.items.isEmpty {
                             emptyStateView
+                                .transition(.opacity.combined(with: .scale))
                         } else {
                             ForEach(Array(sortedItems.enumerated()), id: \.element.id) { index, item in
-                                TodoItemView(
-                                    item: item,
-                                    isEditing: editingItemId == item.id,
-                                    note: note,
-                                    onStartEditing: {
+                                TodoItemView(item: item,
+                                           isEditing: editingItemId == item.id,
+                                           note: note,
+                                           onStartEditing: {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
                                         editingItemId = item.id
                                         currentEditingIndex = index
-                                    },
-                                    onToggle: {
+                                    }
+                                },
+                                           onToggle: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                         if let index = note.items.firstIndex(where: { $0.id == item.id }) {
                                             note.items[index].isCompleted.toggle()
                                             checkCompletion()
                                         }
-                                    },
-                                    onUpdate: { newText in
-                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                    }
+                                },
+                                           onUpdate: { newText in
+                                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
                                             note.items[index].text = newText
-                                            
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                                withAnimation {
-                                                    proxy.scrollTo(item.id, anchor: .bottom)
-                                                }
-                                            }
                                         }
-                                    },
-                                    onDelete: {
-                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                note.items.remove(at: index)
-                                                
-                                                if !note.items.isEmpty {
-                                                    let newIndex = max(0, index - 1)
-                                                    let newItem = note.items[newIndex]
-                                                    editingItemId = newItem.id
-                                                } else {
-                                                    editingItemId = nil
-                                                    isFocused = true
-                                                }
+                                        
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                            withAnimation {
+                                                proxy.scrollTo(item.id, anchor: .center)
                                             }
-                                        }
-                                    },
-                                    onInsertAfter: {
-                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                                            let newItem = TodoItem(
-                                                text: "",
-                                                isCompleted: false,
-                                                textColor: selectedColor,
-                                                fontSize: selectedFontSize,
-                                                fontStyle: selectedFontStyle
-                                            )
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                note.items.insert(newItem, at: index + 1)
-                                                editingItemId = newItem.id
-                                            }
-                                        }
-                                    },
-                                    onColorChange: { color, range in
-                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                                            note.items[index].textColor = color
                                         }
                                     }
+                                },
+                                           onDelete: {
+                                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            note.items.remove(at: index)
+                                            
+                                            if !note.items.isEmpty {
+                                                let newIndex = max(0, index - 1)
+                                                let newItem = note.items[newIndex]
+                                                editingItemId = newItem.id
+                                            } else {
+                                                editingItemId = nil
+                                                isFocused = true
+                                            }
+                                        }
+                                    }
+                                },
+                                           onInsertAfter: {
+                                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                        let newItem = TodoItem(
+                                            text: "",
+                                            isCompleted: false,
+                                            textColor: selectedColor,
+                                            fontSize: selectedFontSize,
+                                            fontStyle: selectedFontStyle
+                                        )
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            note.items.insert(newItem, at: index + 1)
+                                            editingItemId = newItem.id
+                                        }
+                                    }
+                                },
+                                           onColorChange: { color, range in
+                                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                        note.items[index].textColor = color
+                                    }
+                                }
                                 )
                                 .id(item.id)
+                                .transition(.opacity.combined(with: .move(edge: .leading)))
                             }
                         }
                         
                         Spacer().frame(height: bottomSafeArea)
                     }
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: note.items.count)
                     .onAppear {
                         scrollProxy = proxy
                     }
