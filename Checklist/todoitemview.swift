@@ -112,14 +112,13 @@ struct CustomTextField: NSViewRepresentable {
         textField.drawsBackground = false
         textField.delegate = context.coordinator
         
-        // Configure cell properties
+        // Configure text container options
         if let cell = textField.cell as? NSTextFieldCell {
             cell.wraps = true
             cell.isScrollable = false
             cell.truncatesLastVisibleLine = false
             cell.usesSingleLineMode = false
             
-            // Add proper line breaking and wrapping behavior
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.lineBreakMode = .byWordWrapping
             paragraphStyle.lineSpacing = 2
@@ -128,7 +127,7 @@ struct CustomTextField: NSViewRepresentable {
                 .paragraphStyle: paragraphStyle
             ]
             
-            cell.attributedStringValue = NSAttributedString(string: text, attributes: attributes)
+            cell.attributedStringValue = NSAttributedString(string: "", attributes: attributes)
         }
         
         return textField
@@ -139,26 +138,19 @@ struct CustomTextField: NSViewRepresentable {
         nsView.font = fontStyle.font(size: fontSize.size)
         nsView.textColor = NSColor(textColor).withAlphaComponent(isCompleted ? 0.5 : 1.0)
         
-        // Update paragraph style
-        if let cell = nsView.cell as? NSTextFieldCell {
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.lineBreakMode = .byWordWrapping
-            paragraphStyle.lineSpacing = 2
-            
-            let attributes: [NSAttributedString.Key: Any] = [
-                .paragraphStyle: paragraphStyle,
-                .font: fontStyle.font(size: fontSize.size),
-                .foregroundColor: NSColor(textColor).withAlphaComponent(isCompleted ? 0.5 : 1.0)
-            ]
-            
-            cell.attributedStringValue = NSAttributedString(string: text, attributes: attributes)
-        }
-        
+        // Fix: Properly handle optional NSResponder and boolean comparison
         if isFocused {
             DispatchQueue.main.async {
-                nsView.window?.makeFirstResponder(nsView)
-                if let editor = nsView.currentEditor() {
-                    editor.selectedRange = NSRange(location: text.count, length: 0)
+                guard let window = nsView.window,
+                      let firstResponder = window.firstResponder else {
+                    return
+                }
+                
+                if !firstResponder.isEqual(nsView) {
+                    window.makeFirstResponder(nsView)
+                    if let editor = nsView.currentEditor() {
+                        editor.selectedRange = NSRange(location: text.count, length: 0)
+                    }
                 }
             }
         }
@@ -178,21 +170,6 @@ struct CustomTextField: NSViewRepresentable {
         func controlTextDidChange(_ notification: Notification) {
             guard let textField = notification.object as? NSTextField else { return }
             parent.text = textField.stringValue
-            
-            // Update paragraph style on change
-            if let cell = textField.cell as? NSTextFieldCell {
-                let paragraphStyle = NSMutableParagraphStyle()
-                paragraphStyle.lineBreakMode = .byWordWrapping
-                paragraphStyle.lineSpacing = 2
-                
-                let attributes: [NSAttributedString.Key: Any] = [
-                    .paragraphStyle: paragraphStyle,
-                    .font: parent.fontStyle.font(size: parent.fontSize.size),
-                    .foregroundColor: NSColor(parent.textColor).withAlphaComponent(parent.isCompleted ? 0.5 : 1.0)
-                ]
-                
-                cell.attributedStringValue = NSAttributedString(string: textField.stringValue, attributes: attributes)
-            }
         }
         
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
