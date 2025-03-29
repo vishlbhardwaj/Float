@@ -71,12 +71,12 @@ struct StickyNoteCard: View {
                 .font(.system(size: 14))
                 .padding(.top, 20)
                 .shimmering(active: isHovered)
-                .opacity(isHovered ? 1 : 1)
+                .opacity(isHovered ? 1 : 1)// Add shimmer effect when hovered
         }
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(isHovered ? Color.hexColor("#f8f8f8") : Color.clear)
+                .fill(isHovered ? Color(hex: "#f8f8f8") : Color.clear)
                 .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isHovered)
         )
         .background(
@@ -137,5 +137,22 @@ struct CardFramePreferenceKey: PreferenceKey {
     
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()
+    }
+}
+
+// Color extension remains the same
+extension Color {
+    init(hex: String) {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+        
+        var rgb: UInt64 = 0
+        Scanner(string: hexSanitized).scanHexInt64(&rgb)
+        
+        let red = Double((rgb >> 16) & 0xFF) / 255.0
+        let green = Double((rgb >> 8) & 0xFF) / 255.0
+        let blue = Double(rgb & 0xFF) / 255.0
+        
+        self.init(red: red, green: green, blue: blue)
     }
 }

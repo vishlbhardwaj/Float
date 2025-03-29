@@ -2,62 +2,6 @@ import SwiftUI
 import AppKit
 import ConfettiSwiftUI
 
-// Add RippleModifier for font size changes
-struct FontSizeRippleModifier: ViewModifier {
-    var origin: CGPoint
-    var elapsedTime: TimeInterval
-    var duration: TimeInterval
-    var isActive: Bool
-    
-    func body(content: Content) -> some View {
-        content
-            .visualEffect { content, proxy in
-                content
-                    .scaleEffect(
-                        isActive ? 
-                        1.0 + sin(elapsedTime * 15) * 0.02 * (1 - elapsedTime / duration) : 1.0,
-                        anchor: .center
-                    )
-                    .blur(radius: isActive ? 0.5 * (1 - elapsedTime / duration) : 0)
-            }
-            .animation(.smooth, value: isActive)
-    }
-}
-
-// New ViewModifier for staggered animations
-struct StaggeredFontSizeModifier: ViewModifier {
-    let index: Int
-    let isChanging: Bool
-    let delay: TimeInterval
-    @State private var opacity: Double = 1
-    @State private var blur: CGFloat = 0
-    @State private var scale: CGFloat = 1
-    
-    func body(content: Content) -> some View {
-        content
-            .opacity(opacity)
-            .blur(radius: blur)
-            .scaleEffect(scale)
-            .onChange(of: isChanging) { isChanging in
-                if isChanging {
-                    // Staggered fade out
-                    withAnimation(.easeInOut(duration: 0.2).delay(delay * Double(index))) {
-                        opacity = 0
-                        blur = 5
-                        scale = 0.95
-                    }
-                } else {
-                    // Staggered fade in
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7).delay(delay * Double(index))) {
-                        opacity = 1
-                        blur = 0
-                        scale = 1
-                    }
-                }
-            }
-    }
-}
-
 struct StickyNoteView: View {
     @ObservedObject var note: StickyNote
     @State private var editingItemId: UUID?
@@ -82,23 +26,6 @@ struct StickyNoteView: View {
     @State private var selectedFontSize: FontSize = .medium
     @State private var selectedFontStyle: FontStyle = .simple
     @State private var currentEditingIndex: Int = 0
-    @State private var isChangingTextSize: Bool = false
-    @State private var textSizeScale: CGFloat = 1.0
-    @State private var isResizing: Bool = false
-    @State private var previousNoteSize: StickyNoteSize?
-    @State private var horizontalStretch: CGFloat = 1.0
-    @State private var verticalStretch: CGFloat = 1.0
-    @State private var resizeRotation: CGFloat = 0
-    
-    // New properties for ripple effect
-    @State private var rippleOrigin: CGPoint = .zero
-    @State private var isRippling: Bool = false
-    @State private var rippleElapsedTime: TimeInterval = 0
-    let rippleDuration: TimeInterval = 0.5
-    
-    @State private var isAnimatingFontChange: Bool = false
-    private let staggerDelay: TimeInterval = 0.03
-    
     let creationDate: Date = Date()
     var onDelete: () -> Void
     
@@ -117,6 +44,22 @@ struct StickyNoteView: View {
     private let propertiesBarGap: CGFloat = 16
     private let propertiesBarPadding: CGFloat = 32
     private let minimumTopSpace: CGFloat = 16 // Minimum space needed from window top
+    
+    // ADD: Animation properties for smoother transitions
+    @State private var isResizing: Bool = false
+    @State private var previousNoteSize: StickyNoteSize?
+    @State private var horizontalStretch: CGFloat = 1.0
+    @State private var verticalStretch: CGFloat = 1.0
+    @State private var resizeRotation: CGFloat = 0
+    
+    // ADD: New properties for shimmer and text animation
+    @State private var isResizingText: Bool = false
+    @State private var shimmerOffset: CGFloat = -100
+    @State private var staggeredDelay: Double = 0
+    
+    // ADD: Shimmer gradient properties
+    private let shimmerAnimation = Animation.linear(duration: 1.0).repeatForever(autoreverses: false)
+    private let staggerInterval: Double = 0.05
     
     var body: some View {
         GeometryReader { geometry in
@@ -157,26 +100,7 @@ struct StickyNoteView: View {
                     selectedColor: $selectedColor,
                     selectedFontSize: Binding(
                         get: { note.fontSize },
-                        set: { newSize in
-                            // Start staggered animation
-                            withAnimation(.easeInOut(duration: 0.1)) {
-                                isAnimatingFontChange = true
-                            }
-                            
-                            // Update font size after brief delay
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                    note.updateTextSize(to: newSize)
-                                }
-                                
-                                // End staggered animation
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    withAnimation(.easeInOut(duration: 0.1)) {
-                                        isAnimatingFontChange = false
-                                    }
-                                }
-                            }
-                        }
+                        set: { note.updateTextSize(to: $0) }
                     ),
                     selectedFontStyle: $selectedFontStyle
                 )
@@ -190,9 +114,9 @@ struct StickyNoteView: View {
 
             // Main sticky note
             ZStack {
-                // Background and content
+                // Background and content in same transform
                 ZStack {
-                    // Background
+                    // Background with shimmer effect
                     RoundedRectangle(cornerRadius: 20)
                         .fill(note.style.backgroundColor)
                         .overlay(
@@ -202,6 +126,23 @@ struct StickyNoteView: View {
                                 lineWidth: 1
                             )
                             .opacity(0.3)
+                        )
+                        .overlay(
+                            Group {
+                                if isResizingText {
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            Color.white.opacity(0),
+                                            Color.white.opacity(0.5),
+                                            Color.white.opacity(0)
+                                        ]),
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                    .offset(x: shimmerOffset)
+                                    .blur(radius: 8)
+                                }
+                            }
                         )
                         .shadow(
                             color: Color.black.opacity(isDragging ? 0.2 : 0.1),
@@ -243,10 +184,8 @@ struct StickyNoteView: View {
                         
                         Spacer().frame(height: 8)
                         
-                        // Wrap todoListContent in a scale effect
                         todoListContent
-                            .scaleEffect(textSizeScale, anchor: .topLeading)
-                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: textSizeScale)
+                            .opacity(isResizingText ? 0.6 : 1.0)
                     }
                     .padding(.horizontal, horizontalPadding)
                     .padding(.top, contentTopPadding)
@@ -297,6 +236,37 @@ struct StickyNoteView: View {
                 
                 previousNoteSize = newSize
             }
+            .onChange(of: note.fontSize) { oldSize, newSize in
+                withAnimation(.spring(
+                    response: 0.7,
+                    dampingFraction: 0.6
+                )) {
+                    isResizingText = true
+                    shimmerOffset = noteWidth + 100
+                }
+                
+                // Account for both disappearing and appearing animations
+                let itemCount = Double(note.items.count)
+                let disappearStaggerDuration = itemCount * 0.15 // Staggered disappearing
+                let disappearDuration = 0.7 // Base disappear animation
+                let appearStaggerDuration = itemCount * 0.15 // Staggered appearing
+                let appearDuration = 0.7 // Base appear animation
+                let transitionBuffer = 0.3 // Buffer between disappear and appear phases
+                
+                let totalDuration = disappearStaggerDuration + disappearDuration + transitionBuffer + appearStaggerDuration + appearDuration
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + totalDuration) {
+                    withAnimation(.spring(
+                        response: 0.7,
+                        dampingFraction: 0.6
+                    )) {
+                        isResizingText = false
+                        shimmerOffset = -100
+                    }
+                }
+                
+                handleFontSizeChange(from: oldSize, to: newSize)
+            }
             
             confettiLayer
         }
@@ -305,16 +275,6 @@ struct StickyNoteView: View {
             minHeight: noteHeight + propertiesBarHeight + 16 + minimumTopSpace + 40
         )
         .ignoresSafeArea()
-        .onAppear {
-            // Start a timer for ripple animation
-            Timer.publish(every: 1/60, on: .main, in: .common)
-                .autoconnect()
-                .sink { _ in
-                    if isRippling {
-                        rippleElapsedTime += 1/60
-                    }
-                }
-        }
     }
     
     private var todoListContent: some View {
@@ -324,89 +284,87 @@ struct StickyNoteView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         if note.items.isEmpty {
                             emptyStateView
-                                .transition(.opacity.combined(with: .scale))
                         } else {
                             ForEach(Array(sortedItems.enumerated()), id: \.element.id) { index, item in
-                                TodoItemView(item: item,
-                                           isEditing: editingItemId == item.id,
-                                           note: note,
-                                           onStartEditing: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                TodoItemView(
+                                    item: item,
+                                    isEditing: editingItemId == item.id,
+                                    note: note,
+                                    index: index,
+                                    totalItems: sortedItems.count,
+                                    onStartEditing: {
                                         editingItemId = item.id
                                         currentEditingIndex = index
-                                    }
-                                },
-                                           onToggle: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    },
+                                    onToggle: {
                                         if let index = note.items.firstIndex(where: { $0.id == item.id }) {
                                             note.items[index].isCompleted.toggle()
                                             checkCompletion()
                                         }
-                                    }
-                                },
-                                           onUpdate: { newText in
-                                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                    },
+                                    onUpdate: { newText in
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
                                             note.items[index].text = newText
-                                        }
-                                        
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                            withAnimation {
-                                                proxy.scrollTo(item.id, anchor: .center)
-                                            }
-                                        }
-                                    }
-                                },
-                                           onDelete: {
-                                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            note.items.remove(at: index)
                                             
-                                            if !note.items.isEmpty {
-                                                let newIndex = max(0, index - 1)
-                                                let newItem = note.items[newIndex]
-                                                editingItemId = newItem.id
-                                            } else {
-                                                editingItemId = nil
-                                                isFocused = true
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                                withAnimation {
+                                                    proxy.scrollTo(item.id, anchor: .bottom)
+                                                }
                                             }
                                         }
-                                    }
-                                },
-                                           onInsertAfter: {
-                                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                                        let newItem = TodoItem(
-                                            text: "",
-                                            isCompleted: false,
-                                            textColor: selectedColor,
-                                            fontSize: selectedFontSize,
-                                            fontStyle: selectedFontStyle
-                                        )
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            note.items.insert(newItem, at: index + 1)
-                                            editingItemId = newItem.id
+                                    },
+                                    onDelete: {
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                note.items.remove(at: index)
+                                                
+                                                if !note.items.isEmpty {
+                                                    let newIndex = max(0, index - 1)
+                                                    let newItem = note.items[newIndex]
+                                                    editingItemId = newItem.id
+                                                } else {
+                                                    editingItemId = nil
+                                                    isFocused = true
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onInsertAfter: {
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                            let newItem = TodoItem(
+                                                text: "",
+                                                isCompleted: false,
+                                                textColor: selectedColor,
+                                                fontSize: selectedFontSize,
+                                                fontStyle: selectedFontStyle
+                                            )
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                note.items.insert(newItem, at: index + 1)
+                                                editingItemId = newItem.id
+                                            }
+                                        }
+                                    },
+                                    onColorChange: { color, range in
+                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
+                                            note.items[index].textColor = color
                                         }
                                     }
-                                },
-                                           onColorChange: { color, range in
-                                    if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                                        note.items[index].textColor = color
-                                    }
-                                }
                                 )
                                 .id(item.id)
-                                .modifier(StaggeredFontSizeModifier(
-                                    index: index,
-                                    isChanging: isAnimatingFontChange,
-                                    delay: staggerDelay
-                                ))
-                                .transition(.opacity.combined(with: .move(edge: .leading)))
+                                .transition(.opacity)
+                                .animation(
+                                    .spring(
+                                        response: 0.7,
+                                        dampingFraction: 0.6
+                                    )
+                                    .delay(Double(index) * 0.1),
+                                    value: note.fontSize
+                                )
                             }
                         }
                         
                         Spacer().frame(height: bottomSafeArea)
                     }
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: note.items.count)
                     .onAppear {
                         scrollProxy = proxy
                     }
@@ -672,9 +630,38 @@ struct StickyNoteView: View {
             scrollProxy?.scrollTo(editingItemId, anchor: .center)
         }
     }
+    
+    private func handleFontSizeChange(from oldSize: FontSize, to newSize: FontSize) {
+        withAnimation(.spring(
+            response: 0.7,
+            dampingFraction: 0.6
+        )) {
+            isResizingText = true
+            shimmerOffset = noteWidth + 100
+        }
+        
+        // Account for both disappearing and appearing animations
+        let itemCount = Double(note.items.count)
+        let disappearStaggerDuration = itemCount * 0.1 // Each item takes 0.1s to start disappearing
+        let disappearDuration = 0.7 // Base disappear animation
+        let appearStaggerDuration = itemCount * 0.1 // Each item takes 0.1s to start appearing
+        let appearDuration = 0.7 // Base appear animation
+        let transitionBuffer = 0.3 // Buffer between disappear and appear phases
+        
+        let totalDuration = disappearStaggerDuration + disappearDuration + transitionBuffer + appearStaggerDuration + appearDuration
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + totalDuration) {
+            withAnimation(.spring(
+                response: 0.7,
+                dampingFraction: 0.6
+            )) {
+                isResizingText = false
+                shimmerOffset = -100
+            }
+        }
+    }
 }
 
-// Extension for placeholder text with custom color
 extension View {
     func placeholder<Content: View>(
         when shouldShow: Bool,

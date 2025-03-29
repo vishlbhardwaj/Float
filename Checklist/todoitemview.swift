@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import AnimateText
 
 struct TodoItemView: View {
     let item: TodoItem
@@ -12,16 +11,29 @@ struct TodoItemView: View {
     let onInsertAfter: () -> Void
     let onColorChange: (Color, NSRange?) -> Void
     @ObservedObject var note: StickyNote
+    let index: Int
+    let totalItems: Int
     
     @State private var text: String
     @State private var isPressed: Bool = false
     @State private var selectedRange: NSRange?
+    @State private var opacity: Double = 1.0
     @State private var blurRadius: CGFloat = 0
+    @State private var verticalOffset: CGFloat = 0
     @State private var scale: CGFloat = 1
+    @State private var isUpdatingSize: Bool = false
+    @State private var currentFontSize: FontSize
+    @State private var shouldShowText: Bool = true
+    
+    private var itemHeight: CGFloat {
+        currentFontSize.size * 1.8
+    }
     
     init(item: TodoItem,
          isEditing: Bool,
          note: StickyNote,
+         index: Int,
+         totalItems: Int,
          onStartEditing: @escaping () -> Void,
          onToggle: @escaping () -> Void,
          onUpdate: @escaping (String) -> Void,
@@ -31,6 +43,8 @@ struct TodoItemView: View {
         self.item = item
         self.isEditing = isEditing
         self.note = note
+        self.index = index
+        self.totalItems = totalItems
         self.onStartEditing = onStartEditing
         self.onToggle = onToggle
         self.onUpdate = onUpdate
@@ -38,6 +52,38 @@ struct TodoItemView: View {
         self.onInsertAfter = onInsertAfter
         self.onColorChange = onColorChange
         self._text = State(initialValue: item.text)
+        self._currentFontSize = State(initialValue: note.fontSize)
+    }
+    
+    private func performResizeAnimation() {
+        // First hide all items quickly
+        withAnimation(.easeOut(duration: 0.2)) {
+            opacity = 0
+            blurRadius = 10
+            scale = 0.98
+            shouldShowText = false
+            isUpdatingSize = true
+        }
+        
+        // Update the font size while content is hidden
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            currentFontSize = note.fontSize
+            
+            // Stagger the reappearance of items from top to bottom
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(self.index) * 0.08) {
+                withAnimation(.spring(
+                    response: 0.6,
+                    dampingFraction: 0.8,
+                    blendDuration: 0.3
+                )) {
+                    opacity = 1
+                    blurRadius = 0
+                    scale = 1
+                    shouldShowText = true
+                    isUpdatingSize = false
+                }
+            }
+        }
     }
     
     var body: some View {
@@ -58,65 +104,76 @@ struct TodoItemView: View {
             }) {
                 Image(systemName: item.isCompleted ? "checkmark.circle.fill" : (item.text.isEmpty ? "circle.dotted" : "circle"))
                     .foregroundColor(item.text.isEmpty ? .gray.opacity(0.4) : (item.isCompleted ? .gray : .gray))
-                    .font(.system(size: note.fontSize.size))
+                    .font(.system(size: currentFontSize.size))
                     .opacity(item.text.isEmpty ? 0.4 : (item.isCompleted ? 1 : 1))
             }
             .buttonStyle(PlainButtonStyle())
             .scaleEffect(isPressed ? 0.8 : 1.0)
+            .opacity(opacity)
+            .blur(radius: blurRadius)
+            .scaleEffect(scale)
             .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
             .allowsHitTesting(!item.text.isEmpty)
             .frame(width: 24, alignment: .center)
             
             if isEditing {
-                CustomTextField(
-                    text: $text,
-                    isFocused: true,
-                    textColor: item.textColor,
-                    fontSize: note.fontSize,
-                    fontStyle: item.fontStyle,
-                    isCompleted: item.isCompleted,
-                    selectedRange: $selectedRange,
-                    onUpdate: { newText in
-                        if newText.isEmpty && item.isCompleted {
-                            onToggle()
-                        }
-                        onUpdate(newText)
-                    },
-                    onSubmit: onInsertAfter,
-                    onDelete: onDelete,
-                    onColorChange: onColorChange,
-                    note: note
-                )
-                .frame(maxWidth: .infinity)
-                .opacity(item.isCompleted ? 0.6 : 1.0)
-                .animation(.easeOut(duration: 0.2), value: item.isCompleted)
-            } else {
-                Text(item.text)
-                    .font(Font(item.fontStyle.font(size: note.fontSize.size)))
-                    .foregroundColor(item.textColor)
-                    .strikethrough(item.isCompleted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentShape(Rectangle())
-                    .onTapGesture { onStartEditing() }
-                    .blur(radius: blurRadius)
-                    .scaleEffect(scale)
-                    .opacity(item.isCompleted ? 0.6 : 1.0)
-                    .onChange(of: note.fontSize) { newSize in
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            blurRadius = 2
-                            scale = 0.98
-                        }
-                        
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7).delay(0.1)) {
-                            blurRadius = 0
-                            scale = 1
-                        }
+                Group {
+                    if !shouldShowText {
+                        Color.clear
+                            .frame(height: currentFontSize.size * 1.5)
+                    } else {
+                        CustomTextField(
+                            text: $text,
+                            isFocused: true,
+                            textColor: item.textColor,
+                            fontSize: currentFontSize,
+                            fontStyle: item.fontStyle,
+                            isCompleted: note.listStyle == .checkbox && item.isCompleted,
+                            selectedRange: $selectedRange,
+                            onUpdate: { newText in
+                                if newText.isEmpty && item.isCompleted {
+                                    onToggle()
+                                }
+                                onUpdate(newText)
+                            },
+                            onSubmit: onInsertAfter,
+                            onDelete: onDelete,
+                            onColorChange: onColorChange,
+                            note: note
+                        )
                     }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .opacity(opacity)
+                .blur(radius: blurRadius)
+                .scaleEffect(scale)
+            } else {
+                Group {
+                    if !shouldShowText {
+                        Color.clear
+                            .frame(height: currentFontSize.size * 1.5)
+                    } else {
+                        Text(item.text)
+                            .font(Font(item.fontStyle.font(size: currentFontSize.size)))
+                            .foregroundColor(item.textColor)
+                            .strikethrough(note.listStyle == .checkbox && item.isCompleted)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(opacity)
+                .blur(radius: blurRadius)
+                .scaleEffect(scale)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentShape(Rectangle())
+                .onTapGesture { onStartEditing() }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 4)
+        .background(Color.clear)
+        .onChange(of: note.fontSize) { _, _ in
+            performResizeAnimation()
+        }
     }
 }
 
@@ -254,7 +311,7 @@ struct CustomTextField: NSViewRepresentable {
             DispatchQueue.main.async {
                 nsView.window?.makeFirstResponder(nsView)
                 if let editor = nsView.currentEditor() {
-                    if let range = selectedRange {
+                    if let range = self.selectedRange {
                         editor.selectedRange = range
                     } else {
                         editor.selectedRange = NSRange(location: nsView.stringValue.count, length: 0)
