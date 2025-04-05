@@ -1,14 +1,14 @@
 <?xml version="1.0" standalone="yes"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
-        <title>Float</title>
+        <title>Float </title>
         <item>
-            <title>1.0</title>
-            <pubDate>Sun, 23 Mar 2025 19:35:59 +0530</pubDate>
+            <title>1.1</title>
+            <pubDate>Sat, 05 Apr 2025 12:52:59 +0530</pubDate>
             <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
+            <sparkle:shortVersionString>1.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/vishlbhardwaj/Float/releases/download/prod/Float.dmg" length="4124349" type="application/octet-stream" sparkle:edSignature="OdosM6ieF/hDOyNiGq+G8rACAyFAZGiTJMEcCrAB2DNUlwFTE1llUnqhzwrNXh8Lhh9VlrZ4CMj2MIxfhuKKDg=="/>
+            <enclosure url="https://github.com/vishlbhardwaj/Float/releases/download/prod/Float.dmg" length="9077856" type="application/octet-stream" sparkle:edSignature="PQlRy+kgHQ6n0e3JhgSePv8PGEv2e3qNtVB3C7gUZdBQrHcX3IjVeM8/j4dFlSU8YnB0NXg3U+4sg2Ubd2E6Cg=="/>
         </item>
     </channel>
 </rss>
