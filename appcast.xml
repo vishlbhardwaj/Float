@@ -4,11 +4,11 @@
         <title>Float</title>
         <item>
             <title>1.1</title>
-            <pubDate>Sat, 05 Apr 2025 18:58:13 +0530</pubDate>
+            <pubDate>Thu, 10 Apr 2025 22:58:17 +0530</pubDate>
             <sparkle:version>1.1</sparkle:version>
             <sparkle:shortVersionString>1.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/vishlbhardwaj/Float/releases/download/prod/Float.dmg" length="8938592" type="application/octet-stream" sparkle:edSignature="tAHNzSJ6+i3gsIfJSxG16RVuU+D2l3f8CQ9dnnipf+EXOhrvI/3NGy0GZoc4ljCO+Wd3E8mG2icCSwo6Hj1bAg=="/>
+            <enclosure url="https://github.com/vishlbhardwaj/Float/releases/download/prod/Float.dmg" length="8922208" type="application/octet-stream" sparkle:edSignature="sj0OK1OdF1FLMo21I6gBFb5o9Uvtab+SfOid/3R7E7U44OZJKxRvcKhL8v+5DEA2TjZ9FYaxq7f19a+74j7EAw=="/>
         </item>
     </channel>
 </rss>
