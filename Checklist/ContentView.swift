@@ -1,6 +1,7 @@
 import SwiftUI
 import Shimmer
 import SpriteKit
+import Combine
 
 struct ContentView: View {
     @State private var stickyNotes: [StickyNote] = []
@@ -108,15 +109,21 @@ struct ContentView: View {
     }
     
     private func openStickyNoteWindow(newNote: StickyNote) {
+        // Calculate exact window size based on the note dimensions
+        let noteWidth = newNote.noteSize.dimensions.width
+        let noteHeight = newNote.noteSize.dimensions.height
+        
+        // Add buffer for the window (including space for properties bar)
+        let windowWidth = noteWidth + 40
+        let windowHeight = noteHeight + 100  // Increased from 40 to 100 to accommodate properties bar
+        
         let panel = FloatingPanel(
-            contentRect: NSRect(x: 20, y: 20, width: 350, height: 420),
+            contentRect: NSRect(x: 20, y: 20, width: windowWidth, height: windowHeight),
             backing: .buffered,
             defer: false
         )
         
-        // Configure window properties
-        panel.minSize = NSSize(width: 350, height: 420)
-        panel.maxSize = NSSize(width: 350, height: 420)
+        // We no longer need to set min/max sizes since the window is not resizable
         
         let hostingView = NSHostingView(rootView:
                                         StickyNoteView(note: newNote) {
@@ -160,6 +167,12 @@ struct ContentView: View {
         }
         
         stickyNotes.append(newNote)
+        
+        // Observe pin state and update window level
+        let cancellable = newNote.$isPinned.sink { isPinned in
+            panel.level = isPinned ? .floating : .normal
+        }
+        // Store the cancellable if you want to manage its lifecycle (not strictly necessary for this ephemeral window)
     }
     
     private func emojiForStickyNote(_ style: StickyNoteStyle) -> String {

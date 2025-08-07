@@ -47,6 +47,7 @@ class StickyNote: Identifiable, ObservableObject {
     @Published var fontStyle: FontStyle = .simple
     @Published var noteSize: StickyNoteSize = .medium
     @Published var fontSize: FontSize = .medium
+    @Published var isPinned: Bool = false
     
     init(style: StickyNoteStyle) {
         self.style = style
@@ -67,6 +68,23 @@ class StickyNote: Identifiable, ObservableObject {
             fontSize = newSize
             for index in items.indices {
                 items[index].fontSize = newSize
+            }
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                self.isShimmering = false
+            }
+        }
+    }
+    
+    func updateFontStyle(to newStyle: FontStyle) {
+        isShimmering = true
+        
+        withAnimation(.easeInOut(duration: 0.3)) {
+            fontStyle = newStyle
+            for index in items.indices {
+                items[index].fontStyle = newStyle
             }
         }
         

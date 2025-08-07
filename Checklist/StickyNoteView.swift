@@ -26,6 +26,7 @@ struct StickyNoteView: View {
     @State private var selectedFontSize: FontSize = .medium
     @State private var selectedFontStyle: FontStyle = .simple
     @State private var currentEditingIndex: Int = 0
+    @State private var currentSelectedRange: NSRange?
     let creationDate: Date = Date()
     var onDelete: () -> Void
     
@@ -53,8 +54,6 @@ struct StickyNoteView: View {
     @State private var resizeRotation: CGFloat = 0
     
     // ADD: New properties for shimmer and text animation
-    @State private var isResizingText: Bool = false
-    @State private var shimmerOffset: CGFloat = -100
     @State private var staggeredDelay: Double = 0
     
     // ADD: Shimmer gradient properties
@@ -73,12 +72,19 @@ struct StickyNoteView: View {
             )
             
             // Calculate properties bar position - exactly 16px above note
-            let propertiesBarY = adjustedNoteY - (noteHeight / 2) - 16 - (propertiesBarHeight / 2)
+            let propertiesBarY = max(
+                propertiesBarHeight/2 + 8, // Ensure minimum padding from top
+                adjustedNoteY - (noteHeight / 2) - propertiesBarGap - (propertiesBarHeight / 2)
+            )
             
             // Background for tap handling
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    // Check if typing in the initial empty state
+                    saveEmptyStateText()
+                    
+                    // Deselect / remove focus
                     isViewActive = false
                     isFocused = false
                     editingItemId = nil
@@ -89,6 +95,7 @@ struct StickyNoteView: View {
                 PropertiesBar(
                     note: note,
                     onDelete: {
+                        saveEmptyStateText()
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             opacity = 0
                             showPropertiesBar = false
@@ -100,14 +107,36 @@ struct StickyNoteView: View {
                     selectedColor: $selectedColor,
                     selectedFontSize: Binding(
                         get: { note.fontSize },
-                        set: { note.updateTextSize(to: $0) }
+                        set: { 
+                            saveEmptyStateText()
+                            note.updateTextSize(to: $0) 
+                        }
                     ),
-                    selectedFontStyle: $selectedFontStyle
+                    selectedFontStyle: Binding(
+                        get: { selectedFontStyle },
+                        set: { 
+                            saveEmptyStateText()
+                            selectedFontStyle = $0
+                            note.updateFontStyle(to: $0)
+                        }
+                    ),
+                    selectedRange: currentSelectedRange,
+                    onColorSelected: { color, range in
+                        saveEmptyStateText()
+                        if let editingId = editingItemId,
+                           let index = note.items.firstIndex(where: { $0.id == editingId }) {
+                            if range == nil {
+                                note.items[index].textColor = color
+                            } else {
+                                print("Attempting to change color \(color) for range \(range!) in item \(editingId)")
+                            }
+                        }
+                    }
                 )
                 .frame(width: min(460, max(noteWidth + propertiesBarPadding, 380)))
                 .position(
                     x: geometry.size.width / 2,
-                    y: max(propertiesBarHeight/2 + minimumTopSpace, propertiesBarY)
+                    y: propertiesBarY
                 )
                 .zIndex(2000)
             }
@@ -127,23 +156,6 @@ struct StickyNoteView: View {
                             )
                             .opacity(0.3)
                         )
-                        .overlay(
-                            Group {
-                                if isResizingText {
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [
-                                            Color.white.opacity(0),
-                                            Color.white.opacity(0.5),
-                                            Color.white.opacity(0)
-                                        ]),
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                    .offset(x: shimmerOffset)
-                                    .blur(radius: 8)
-                                }
-                            }
-                        )
                         .shadow(
                             color: Color.black.opacity(isDragging ? 0.2 : 0.1),
                             radius: isDragging ? 15 : 8,
@@ -162,6 +174,17 @@ struct StickyNoteView: View {
                                     .foregroundColor(.gray)
                             }
                             .frame(width: 100, alignment: .leading)
+                            
+                            // Pin button
+                            Button(action: {
+                                note.isPinned.toggle()
+                            }) {
+                                Image(systemName: note.isPinned ? "pin.fill" : "pin")
+                                    .foregroundColor(note.isPinned ? .accentColor : .gray)
+                                    .font(.system(size: 14))
+                                    .padding(.leading, 8)
+                            }
+                            .buttonStyle(PlainButtonStyle())
                             
                             Spacer()
                             
@@ -185,12 +208,14 @@ struct StickyNoteView: View {
                         Spacer().frame(height: 8)
                         
                         todoListContent
-                            .opacity(isResizingText ? 0.6 : 1.0)
                     }
                     .padding(.horizontal, horizontalPadding)
                     .padding(.top, contentTopPadding)
                     .padding(.bottom, bottomSafeArea)
                 }
+                // Removed confetti background
+                .overlay(confettiLayer) // Apply confetti as overlay
+                .clipShape(RoundedRectangle(cornerRadius: 20)) // Clip to note shape
             }
             .frame(width: noteWidth, height: noteHeight)
             .rotationEffect(.degrees(dragRotation + resizeRotation))
@@ -211,12 +236,10 @@ struct StickyNoteView: View {
                     if isGrowing {
                         horizontalStretch = 1.1
                         verticalStretch = 0.95
-                        resizeRotation = 2
                         elevation = 1.05
                     } else {
                         horizontalStretch = 0.95
                         verticalStretch = 1.05
-                        resizeRotation = -2
                         elevation = 0.95
                     }
                 }
@@ -224,57 +247,25 @@ struct StickyNoteView: View {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.65).delay(0.1)) {
                     horizontalStretch = 0.98
                     verticalStretch = 1.02
-                    resizeRotation = isGrowing ? -1 : 1
                 }
                 
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6).delay(0.2)) {
                     horizontalStretch = 1.0
                     verticalStretch = 1.0
-                    resizeRotation = 0
                     elevation = 1.0
                 }
                 
                 previousNoteSize = newSize
             }
-            .onChange(of: note.fontSize) { oldSize, newSize in
-                withAnimation(.spring(
-                    response: 0.7,
-                    dampingFraction: 0.6
-                )) {
-                    isResizingText = true
-                    shimmerOffset = noteWidth + 100
-                }
-                
-                // Account for both disappearing and appearing animations
-                let itemCount = Double(note.items.count)
-                let disappearStaggerDuration = itemCount * 0.15 // Staggered disappearing
-                let disappearDuration = 0.7 // Base disappear animation
-                let appearStaggerDuration = itemCount * 0.15 // Staggered appearing
-                let appearDuration = 0.7 // Base appear animation
-                let transitionBuffer = 0.3 // Buffer between disappear and appear phases
-                
-                let totalDuration = disappearStaggerDuration + disappearDuration + transitionBuffer + appearStaggerDuration + appearDuration
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + totalDuration) {
-                    withAnimation(.spring(
-                        response: 0.7,
-                        dampingFraction: 0.6
-                    )) {
-                        isResizingText = false
-                        shimmerOffset = -100
-                    }
-                }
-                
-                handleFontSizeChange(from: oldSize, to: newSize)
-            }
-            
-            confettiLayer
         }
         .frame(
-            minWidth: noteWidth + 80,
-            minHeight: noteHeight + propertiesBarHeight + 16 + minimumTopSpace + 40
+            minWidth: noteWidth,
+            minHeight: max(noteHeight + propertiesBarHeight + propertiesBarGap + 16, noteHeight * 1.2)
         )
         .ignoresSafeArea()
+        .onChange(of: note.listStyle) { oldStyle, newStyle in
+            saveEmptyStateText() // Save text when list style changes
+        }
     }
     
     private var todoListContent: some View {
@@ -295,6 +286,7 @@ struct StickyNoteView: View {
                                     onStartEditing: {
                                         editingItemId = item.id
                                         currentEditingIndex = index
+                                        currentSelectedRange = nil
                                     },
                                     onToggle: {
                                         if let index = note.items.firstIndex(where: { $0.id == item.id }) {
@@ -344,27 +336,15 @@ struct StickyNoteView: View {
                                             }
                                         }
                                     },
-                                    onColorChange: { color, range in
-                                        if let index = note.items.firstIndex(where: { $0.id == item.id }) {
-                                            note.items[index].textColor = color
-                                        }
-                                    }
+                                    onColorChange: { _, _ in /* No longer needed here */ }
                                 )
                                 .id(item.id)
-                                .transition(.opacity)
-                                .animation(
-                                    .spring(
-                                        response: 0.7,
-                                        dampingFraction: 0.6
-                                    )
-                                    .delay(Double(index) * 0.1),
-                                    value: note.fontSize
-                                )
                             }
                         }
                         
-                        Spacer().frame(height: bottomSafeArea)
                     }
+                    .padding(.trailing, 8)
+                    .padding(.bottom, 40)
                     .onAppear {
                         scrollProxy = proxy
                     }
@@ -379,9 +359,9 @@ struct StickyNoteView: View {
                     }
                 }
             }
-            .frame(height: noteHeight - contentTopPadding - bottomSafeArea - 60)
             .scrollIndicators(.visible)
             .onTapGesture {
+                saveEmptyStateText()
                 isViewActive = true
                 handleTap()
             }
@@ -389,27 +369,41 @@ struct StickyNoteView: View {
             LinearGradient(
                 gradient: Gradient(colors: [
                     note.style.backgroundColor.opacity(0.0),
-                    note.style.backgroundColor.opacity(0.1),
-                    note.style.backgroundColor.opacity(0.4),
                     note.style.backgroundColor
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 24)
-            .padding(.bottom, bottomSafeArea)
+            .frame(height: 32)
             .allowsHitTesting(false)
         }
-        .frame(height: noteHeight - contentTopPadding - bottomSafeArea - 60)
     }
     
     private var emptyStateView: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: newItemText.isEmpty ? "circle.dotted" : "circle")
                 .foregroundColor(newItemText.isEmpty ? .gray.opacity(0.4) : .gray)
-                .font(.system(size: 16))
+                .font(.system(size: selectedFontSize.size))
                 .frame(width: checkboxWidth, alignment: .center)
-                .allowsHitTesting(false)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if !newItemText.isEmpty {
+                        saveEmptyStateText()
+                        
+                        // Add a delay and then mark the newly created item as completed
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            if !note.items.isEmpty {
+                                note.items[0].isCompleted.toggle()
+                                checkCompletion()
+                            }
+                        }
+                        
+                        isViewActive = false
+                        isFocused = false
+                    }
+                }
+                .allowsHitTesting(!newItemText.isEmpty)
+                .offset(y: 2) // Fine-tune vertical alignment
             
             CustomTextField(
                 text: $newItemText,
@@ -592,7 +586,9 @@ struct StickyNoteView: View {
     }
     
     private func checkCompletion() {
-        if allItemsCompleted && !note.items.isEmpty {
+        // Filter out empty items before checking completion
+        let nonEmtpyItems = note.items.filter { !$0.text.isEmpty }
+        if !nonEmtpyItems.isEmpty && nonEmtpyItems.allSatisfy({ $0.isCompleted }) {
             confettiTrigger += 1
         }
     }
@@ -631,33 +627,18 @@ struct StickyNoteView: View {
         }
     }
     
-    private func handleFontSizeChange(from oldSize: FontSize, to newSize: FontSize) {
-        withAnimation(.spring(
-            response: 0.7,
-            dampingFraction: 0.6
-        )) {
-            isResizingText = true
-            shimmerOffset = noteWidth + 100
-        }
-        
-        // Account for both disappearing and appearing animations
-        let itemCount = Double(note.items.count)
-        let disappearStaggerDuration = itemCount * 0.1 // Each item takes 0.1s to start disappearing
-        let disappearDuration = 0.7 // Base disappear animation
-        let appearStaggerDuration = itemCount * 0.1 // Each item takes 0.1s to start appearing
-        let appearDuration = 0.7 // Base appear animation
-        let transitionBuffer = 0.3 // Buffer between disappear and appear phases
-        
-        let totalDuration = disappearStaggerDuration + disappearDuration + transitionBuffer + appearStaggerDuration + appearDuration
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + totalDuration) {
-            withAnimation(.spring(
-                response: 0.7,
-                dampingFraction: 0.6
-            )) {
-                isResizingText = false
-                shimmerOffset = -100
-            }
+    // Helper function to save text from empty state
+    private func saveEmptyStateText() {
+        if !newItemText.isEmpty && note.items.isEmpty {
+            let firstItem = TodoItem(
+                text: newItemText,
+                isCompleted: false,
+                textColor: selectedColor, 
+                fontSize: selectedFontSize, 
+                fontStyle: selectedFontStyle
+            )
+            note.items.append(firstItem)
+            newItemText = ""
         }
     }
 }

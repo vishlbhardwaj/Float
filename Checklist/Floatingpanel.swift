@@ -11,7 +11,7 @@ class FloatingPanel: NSPanel {
         )
         
         super.init(contentRect: expandedRect,
-                  styleMask: [.titled, .resizable, .fullSizeContentView],
+                  styleMask: [.titled, .fullSizeContentView],
                   backing: backing,
                   defer: flag)
         

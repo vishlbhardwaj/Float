@@ -7,7 +7,7 @@ struct TodoItem: Identifiable {
     var isCompleted: Bool
     var textColor: Color = .black
     var fontSize: FontSize = .medium
-    var fontStyle: FontStyle = .simple  // Make sure this matches the enum case
+    var fontStyle: FontStyle = .simple
     let createdAt = Date()
     
     init(text: String, isCompleted: Bool, textColor: Color = .black, fontSize: FontSize = .medium, fontStyle: FontStyle? = nil) {
@@ -15,6 +15,6 @@ struct TodoItem: Identifiable {
         self.isCompleted = isCompleted
         self.textColor = textColor
         self.fontSize = fontSize
-        self.fontStyle = fontStyle ?? .simple  // Make sure this matches the enum case
+        self.fontStyle = fontStyle ?? .simple  // Use default if nil
     }
 }
