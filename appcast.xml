@@ -3,12 +3,12 @@
     <channel>
         <title>Float</title>
         <item>
-            <title>1.1</title>
-            <pubDate>Thu, 10 Apr 2025 22:58:17 +0530</pubDate>
-            <sparkle:version>1.1</sparkle:version>
-            <sparkle:shortVersionString>1.1</sparkle:shortVersionString>
+            <title>1.2</title>
+            <pubDate>Sun, 10 Aug 2025 22:46:49 +0530</pubDate>
+            <sparkle:version>1.2</sparkle:version>
+            <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/vishlbhardwaj/Float/releases/download/prod/Float.dmg" length="8922208" type="application/octet-stream" sparkle:edSignature="sj0OK1OdF1FLMo21I6gBFb5o9Uvtab+SfOid/3R7E7U44OZJKxRvcKhL8v+5DEA2TjZ9FYaxq7f19a+74j7EAw=="/>
+            <enclosure url="https://github.com/vishlbhardwaj/Float/releases/download/prod/Float.dmg" length="5971578" type="application/octet-stream" sparkle:edSignature="RQr8r7HjuGwf385jlx7uXQ+JhADJjKOqqksiIqtsueLx7qkS4IC0KPLtTbu7prF5EWPFHdoSTdqYORI/E8l+Ag=="/>
         </item>
     </channel>
 </rss>
